@@ -3,7 +3,9 @@ Main module
 """
 import asyncio
 import logging
+import os
 import sys
+from dataclasses import dataclass
 from queue import SimpleQueue
 
 from memphis import Memphis  # type: ignore
@@ -21,17 +23,42 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def setup_producer() -> Producer:
+@dataclass
+class Config:
+    """
+    Config for watcher
+    """
+
+    host: str
+    username: str
+    password: str
+    station_name: str
+    producer_name: str
+    watch_dir: str
+
+
+def load_config() -> Config:
+    return Config(
+        os.environ.get("MEMPHIS_HOST", "localhost"),
+        os.environ.get("MEMPHIS_USER", "user"),
+        os.environ.get("MEMPHIS_PASS", "password"),
+        os.environ.get("MEMPHIS_STATION", "station"),
+        os.environ.get("MEMPHIS_PRODUCER_NAME", "producername"),
+        os.environ.get("WATCH_DIR", "./file_watcher"),
+    )
+
+
+async def setup_producer(config: Config) -> Producer:
     """
     Asynchronously setup and return a memphis producer
     :return: The memphis producer
     """
     memphis = Memphis()
-    await memphis.connect(host="localhost", username="rundetection", password="password")
-    return await memphis.producer(station_name="rundetection", producer_name="producername")
+    await memphis.connect(host=config.host, username=config.username, password=config.password)
+    return await memphis.producer(station_name=config.station_name, producer_name=config.producer_name)
 
 
-def setup_watcher(queue: SimpleQueue[str]) -> None:
+def setup_watcher(queue: SimpleQueue[str], config: Config) -> None:
     """
     Start the PollingObserver with the queue based event handler and the given queue
     :param queue: The queue for the event handler to use
@@ -39,7 +66,7 @@ def setup_watcher(queue: SimpleQueue[str]) -> None:
     """
     event_handler = QueueBasedEventHandler(queue)
     observer = PollingObserver()  # type: ignore
-    observer.schedule(event_handler, "./file_watcher")  # type: ignore
+    observer.schedule(event_handler, config.watch_dir)  # type: ignore
     observer.start()  # type: ignore
 
 
@@ -61,9 +88,10 @@ async def main() -> None:
     Main Entrypoint starting the producer, file watcher and creating the queue
     :return: None
     """
-    producer = await setup_producer()
+    config = load_config()
+    producer = await setup_producer(config)
     queue: SimpleQueue[str] = SimpleQueue()
-    setup_watcher(queue)
+    setup_watcher(queue, config)
     await watch(queue, producer)
 
 
