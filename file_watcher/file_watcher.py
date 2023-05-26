@@ -6,8 +6,8 @@ import logging
 import sys
 from queue import SimpleQueue
 
-from memphis import Memphis
-from memphis.producer import Producer
+from memphis import Memphis  # type: ignore
+from memphis.producer import Producer  # type: ignore
 from watchdog.observers.polling import PollingObserver
 
 from file_watcher.event_handlers import QueueBasedEventHandler
@@ -31,19 +31,19 @@ async def setup_producer() -> Producer:
     return await memphis.producer(station_name="rundetection", producer_name="producername")
 
 
-def setup_watcher(queue: SimpleQueue) -> None:
+def setup_watcher(queue: SimpleQueue[str]) -> None:
     """
     Start the PollingObserver with the queue based event handler and the given queue
     :param queue: The queue for the event handler to use
     :return: None
     """
     event_handler = QueueBasedEventHandler(queue)
-    observer = PollingObserver()
-    observer.schedule(event_handler, "./file_watcher")
-    observer.start()
+    observer = PollingObserver()  # type: ignore
+    observer.schedule(event_handler, "./file_watcher")  # type: ignore
+    observer.start()  # type: ignore
 
 
-async def watch(queue: SimpleQueue, producer: Producer) -> None:
+async def watch(queue: SimpleQueue[str], producer: Producer) -> None:
     """
     Loop with a 400 ms delay to check the queue for new files and send to the station if found
     :param queue: The queue
@@ -62,7 +62,7 @@ async def main() -> None:
     :return: None
     """
     producer = await setup_producer()
-    queue = SimpleQueue()
+    queue: SimpleQueue[str] = SimpleQueue()
     setup_watcher(queue)
     await watch(queue, producer)
 
