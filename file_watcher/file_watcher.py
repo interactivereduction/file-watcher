@@ -38,6 +38,10 @@ class Config:
 
 
 def load_config() -> Config:
+    """
+    Load config values from env vars or get defaults and return the config object
+    :return: Config
+    """
     return Config(
         os.environ.get("MEMPHIS_HOST", "localhost"),
         os.environ.get("MEMPHIS_USER", "user"),
