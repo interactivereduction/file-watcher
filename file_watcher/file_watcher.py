@@ -1,3 +1,6 @@
+"""
+Main module
+"""
 import asyncio
 import logging
 import sys
@@ -19,27 +22,50 @@ logger = logging.getLogger(__name__)
 
 
 async def setup_producer() -> Producer:
+    """
+    Asynchronously setup and return a memphis producer
+    :return: The memphis producer
+    """
     memphis = Memphis()
     await memphis.connect(host="localhost", username="rundetection", password="password")
     return await memphis.producer(station_name="rundetection", producer_name="producername")
 
 
-async def main() -> None:
+def setup_watcher(queue: SimpleQueue) -> None:
     """
-    Main Loop
+    Start the PollingObserver with the queue based event handler and the given queue
+    :param queue: The queue for the event handler to use
     :return: None
     """
-    producer = await setup_producer()
-    queue = SimpleQueue()
     event_handler = QueueBasedEventHandler(queue)
     observer = PollingObserver()
     observer.schedule(event_handler, "./file_watcher")
     observer.start()
+
+
+async def watch(queue: SimpleQueue, producer: Producer) -> None:
+    """
+    Loop with a 400 ms delay to check the queue for new files and send to the station if found
+    :param queue: The queue
+    :param producer: The memphis producer
+    :return: None
+    """
     while True:
         if not queue.empty():
             await producer.produce(queue.get())
         await asyncio.sleep(0.4)
 
 
-if __name__ == '__main__':
+async def main() -> None:
+    """
+    Main Entrypoint starting the producer, file watcher and creating the queue
+    :return: None
+    """
+    producer = await setup_producer()
+    queue = SimpleQueue()
+    setup_watcher(queue)
+    await watch(queue, producer)
+
+
+if __name__ == "__main__":
     asyncio.run(main())

@@ -3,7 +3,7 @@ from queue import SimpleQueue
 import pytest as pytest
 from watchdog.events import FileCreatedEvent
 
-from file_watcher.event_handlers import  QueueBasedEventHandler
+from file_watcher.event_handlers import QueueBasedEventHandler
 
 
 @pytest.fixture
@@ -28,4 +28,3 @@ def test_on_create_event_adds_file_to_queue(event_handler, queue):
     event_handler.on_created(event)
 
     assert queue.get() == "/foo/bar.nxs"
-
