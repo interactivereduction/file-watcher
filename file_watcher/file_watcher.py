@@ -44,8 +44,8 @@ def load_config() -> Config:
     """
     return Config(
         os.environ.get("MEMPHIS_HOST", "localhost"),
-        os.environ.get("MEMPHIS_USER", "user"),
-        os.environ.get("MEMPHIS_PASS", "password"),
+        os.environ.get("MEMPHIS_USER", "root"),
+        os.environ.get("MEMPHIS_PASS", "memphis"),
         os.environ.get("MEMPHIS_STATION", "station"),
         os.environ.get("MEMPHIS_PRODUCER_NAME", "producername"),
         os.environ.get("WATCH_DIR", "./file_watcher"),
@@ -87,9 +87,9 @@ async def watch(queue: SimpleQueue[str], producer: Producer) -> None:
         await asyncio.sleep(0.4)
 
 
-async def main() -> None:
+async def start() -> None:
     """
-    Main Entrypoint starting the producer, file watcher and creating the queue
+    Start the producer, file watcher and creating the queue
     :return: None
     """
     config = load_config()
@@ -99,5 +99,10 @@ async def main() -> None:
     await watch(queue, producer)
 
 
+def main():
+    """Main function"""
+    asyncio.run(start())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
