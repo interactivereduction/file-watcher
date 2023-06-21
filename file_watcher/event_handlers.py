@@ -27,7 +27,7 @@ class QueueBasedEventHandler(FileSystemEventHandler):
         """
         logger.info("Creation event triggered: %s", event.src_path)
         if event.is_directory:
-            logger.info("Skipping directory creation")
+            logger.info("Skipping directory creation for: %s", event.src_path)
         else:
             logger.info("Adding to %s to queue", event.src_path)
             self._queue.put(event.src_path)
