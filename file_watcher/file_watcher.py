@@ -73,7 +73,7 @@ def setup_watcher(queue: SimpleQueue[str], config: Config) -> None:
     """
     event_handler = QueueBasedEventHandler(queue)
     observer = PollingObserver()  # type: ignore
-    observer.schedule(event_handler, config.watch_dir)  # type: ignore
+    observer.schedule(event_handler, config.watch_dir, recursive=True)  # type: ignore
     observer.start()  # type: ignore
 
 
