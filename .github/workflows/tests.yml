@@ -35,9 +35,8 @@ jobs:
         if: failure()
         run: |
           cd test
-          docker-compose logs run-detection
-          docker-compose logs broker
-          docker-compose logs activemq
+          docker-compose logs file-watcher
+          docker-compose logs memphis
 
   pytest:
     runs-on: ubuntu-latest
