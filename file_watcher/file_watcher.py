@@ -62,7 +62,8 @@ async def setup_producer(config: Config) -> Producer:
     await memphis.connect(host=config.host, username=config.username, password=config.password)
     logger.info("Connected")
     logger.info("Creating producer: %s  at station: %s", config.producer_name, config.station_name)
-    return await memphis.producer(station_name=config.station_name, producer_name=config.producer_name)
+    return await memphis.producer(station_name=config.station_name, producer_name=config.producer_name,
+                                  generate_random_suffix=True)
 
 
 def setup_watcher(queue: SimpleQueue[str], config: Config) -> None:
