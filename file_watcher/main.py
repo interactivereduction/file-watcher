@@ -2,25 +2,15 @@
 Main module
 """
 import asyncio
-import logging
 import os
-import sys
 from dataclasses import dataclass
-from queue import SimpleQueue
+from pathlib import Path
 
 from memphis import Memphis  # type: ignore
 from memphis.producer import Producer  # type: ignore
-from watchdog.observers.polling import PollingObserver
 
-from file_watcher.event_handlers import QueueBasedEventHandler
-
-stdout_handler = logging.StreamHandler(stream=sys.stdout)
-logging.basicConfig(
-    handlers=[stdout_handler],
-    format="[%(asctime)s]-%(name)s-%(levelname)s: %(message)s",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
+from file_watcher.lastrun_file_monitor import create_last_run_detector
+from file_watcher.utils import logger
 
 
 @dataclass
@@ -34,7 +24,12 @@ class Config:
     password: str
     station_name: str
     producer_name: str
-    watch_dir: str
+    watch_dir: Path
+    run_file_prefix: str
+    instrument_folder: str
+    db_ip: str
+    db_username: str
+    db_password: str
 
 
 def load_config() -> Config:
@@ -48,7 +43,12 @@ def load_config() -> Config:
         os.environ.get("MEMPHIS_PASS", "memphis"),
         os.environ.get("MEMPHIS_STATION", "station"),
         os.environ.get("MEMPHIS_PRODUCER_NAME", "producername"),
-        os.environ.get("WATCH_DIR", "./file_watcher"),
+        Path(os.environ.get("WATCH_DIR", "/archive")),
+        os.environ.get("FILE_PREFIX", "MAR"),
+        os.environ.get("INSTRUMENT_FOLDER", "NDXMARI"),
+        os.environ.get("DB_IP", "localhost"),
+        os.environ.get("DB_USERNAME", "admin"),
+        os.environ.get("DB_PASSWORD", "admin")
     )
 
 
@@ -66,29 +66,28 @@ async def setup_producer(config: Config) -> Producer:
                                   generate_random_suffix=True)
 
 
-def setup_watcher(queue: SimpleQueue[str], config: Config) -> None:
+async def on_event(producer: Producer, path: Path) -> None:
+    str_path = str(path)
+    if path.is_dir():
+        logger.info("Skipping directory creation for: %s", str_path)
+    else:
+        logger.info("Producing message: %s", str_path)
+        await producer.produce(bytearray(str_path, "utf-8"))
+
+
+async def start_watching(producer: Producer, config: Config) -> None:
     """
     Start the PollingObserver with the queue based event handler and the given queue
     :param queue: The queue for the event handler to use
     :return: None
     """
-    event_handler = QueueBasedEventHandler(queue)
-    observer = PollingObserver()  # type: ignore
-    observer.schedule(event_handler, config.watch_dir, recursive=True)  # type: ignore
-    observer.start()  # type: ignore
-
-
-async def watch(queue: SimpleQueue[str], producer: Producer) -> None:
-    """
-    Loop with a 400 ms delay to check the queue for new files and send to the station if found
-    :param queue: The queue
-    :param producer: The memphis producer
-    :return: None
-    """
-    while True:
-        if not queue.empty():
-            await producer.produce(queue.get())
-        await asyncio.sleep(0.4)
+    async def _event_occured(path_to_add):
+        await on_event(producer, path_to_add)
+    file_observer = \
+        await create_last_run_detector(config.watch_dir,  config.instrument_folder, _event_occured,
+                                       run_file_prefix=config.run_file_prefix, db_ip=config.db_ip,
+                                       db_username=config.db_username, db_password=config.db_password)
+    await file_observer.watch_for_new_runs()
 
 
 async def start() -> None:
@@ -98,9 +97,7 @@ async def start() -> None:
     """
     config = load_config()
     producer = await setup_producer(config)
-    queue: SimpleQueue[str] = SimpleQueue()
-    setup_watcher(queue, config)
-    await watch(queue, producer)
+    await start_watching(producer, config)
 
 
 def main():

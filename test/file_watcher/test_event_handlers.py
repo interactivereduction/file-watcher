@@ -3,7 +3,7 @@ from queue import SimpleQueue
 import pytest as pytest
 from watchdog.events import FileCreatedEvent
 
-from file_watcher.event_handlers import QueueBasedEventHandler
+from main.event_handlers import QueueBasedEventHandler
 
 
 @pytest.fixture

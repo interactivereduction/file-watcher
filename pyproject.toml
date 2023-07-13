@@ -3,17 +3,17 @@ name = "file-watcher"
 readme = "README.md"
 version = "0.0.1"
 dependencies = [
-    "watchdog==3.0.0",
-    "memphis-py==1.0.1"
-
+    "memphis-py==1.0.1",
+    "psycopg2==2.9.6",
+    "SQLAlchemy==2.0.13"
 ]
 
 
 [project.urls]
-"Repository" = "https://github.com/interactivereduction/run-detection"
+"Repository" = "https://github.com/interactivereduction/file-watcher"
 
 [project.scripts]
-file_watcher = "file_watcher.file_watcher:main"
+file_watcher = "file_watcher.main:main"
 
 [project.optional-dependencies]
 formatting = [

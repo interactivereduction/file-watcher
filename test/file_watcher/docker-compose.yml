@@ -2,8 +2,8 @@ services:
 
   file-watcher:
     build:
-      context: ../
-      dockerfile: container/file_watcher.D
+      context: ../..
+      dockerfile: ../../container/file_watcher.D
 
     depends_on:
       memphis:

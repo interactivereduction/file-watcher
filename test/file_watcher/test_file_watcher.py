@@ -8,7 +8,7 @@ from unittest.mock import patch, Mock, AsyncMock
 
 import pytest
 
-from file_watcher.file_watcher import watch, setup_watcher, setup_producer, main, load_config
+from main.file_watcher import watch, start_watching, setup_producer, main, load_config
 
 
 @patch("file_watcher.file_watcher.asyncio.sleep")
@@ -64,7 +64,7 @@ def test_setup_watcher(mock_handler_class, mock_observer_class):
     mock_handler_class.return_value = mock_handler
     mock_observer = Mock()
     mock_observer_class.return_value = mock_observer
-    setup_watcher(queue, config)
+    start_watching(queue, config)
     mock_handler_class.assert_called_once_with(queue)
     mock_observer_class.assert_called_once()
     mock_observer.schedule.assert_called_once_with(mock_handler, config.watch_dir)

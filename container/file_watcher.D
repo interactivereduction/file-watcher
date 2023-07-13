@@ -1,6 +1,9 @@
 FROM python:3.10
 
-ADD . .
-RUN python -m pip install --no-cache-dir .
+WORKDIR /file_watcher
 
-ENTRYPOINT ["file_watcher"]
+COPY . /file_watcher
+RUN python -m pip install --no-cache-dir .
+ENV PYTHONPATH=/file_watcher
+
+CMD ["file_watcher"]
