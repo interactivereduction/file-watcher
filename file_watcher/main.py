@@ -52,52 +52,69 @@ def load_config() -> Config:
     )
 
 
-async def setup_producer(config: Config) -> Producer:
-    """
-    Asynchronously setup and return a memphis producer
-    :return: The memphis producer
-    """
-    memphis = Memphis()
-    logger.info("Connecting to memphis at host: %s", config.host)
-    await memphis.connect(host=config.host, username=config.username, password=config.password)
-    logger.info("Connected")
-    logger.info("Creating producer: %s  at station: %s", config.producer_name, config.station_name)
-    return await memphis.producer(station_name=config.station_name, producer_name=config.producer_name,
-                                  generate_random_suffix=True)
+class FileWatcher:
+    def __init__(self, config):
+        self.config = config
+        self.memphis = Memphis()
 
+    async def _init(self):
+        await self.connect_to_broker()
+        self.producer = await self.setup_producer()
 
-async def on_event(producer: Producer, path: Path) -> None:
-    str_path = str(path)
-    if path.is_dir():
-        logger.info("Skipping directory creation for: %s", str_path)
-    else:
-        logger.info("Producing message: %s", str_path)
-        await producer.produce(bytearray(str_path, "utf-8"))
+    async def connect_to_broker(self):
+        logger.info("Connecting to memphis at host: %s", self.config.host)
+        await self.memphis.connect(host=self.config.host, username=self.config.username, password=self.config.password)
+        logger.info("Connected to memphis")
 
+    async def setup_producer(self) -> Producer:
+        """
+        Asynchronously setup and return a memphis producer
+        :return: The memphis producer
+        """
+        logger.info("Creating producer: %s at station: %s", self.config.producer_name, self.config.station_name)
+        return await self.memphis.producer(station_name=self.config.station_name,
+                                           producer_name=self.config.producer_name,
+                                           generate_random_suffix=True)
 
-async def start_watching(producer: Producer, config: Config) -> None:
-    """
-    Start the PollingObserver with the queue based event handler and the given queue
-    :param queue: The queue for the event handler to use
-    :return: None
-    """
-    async def _event_occured(path_to_add):
-        await on_event(producer, path_to_add)
-    file_observer = \
-        await create_last_run_detector(config.watch_dir,  config.instrument_folder, _event_occured,
-                                       run_file_prefix=config.run_file_prefix, db_ip=config.db_ip,
-                                       db_username=config.db_username, db_password=config.db_password)
-    await file_observer.watch_for_new_runs()
+    async def on_event(self, path: Path) -> None:
+        str_path = str(path)
+        if path.is_dir():
+            logger.info("Skipping directory creation for: %s", str_path)
+        else:
+            if not self.memphis.is_connection_active:
+                logger.info("Memphis not connected... attempt to reestablish connection")
+                await self.connect_to_broker()
+            logger.info("Producing message: %s", str_path)
+            await self.producer.produce(bytearray(str_path, "utf-8"))
+
+    async def start_watching(self) -> None:
+        """
+        Start the PollingObserver with the queue based event handler and the given queue
+        :param queue: The queue for the event handler to use
+        :return: None
+        """
+        async def _event_occurred(path_to_add):
+            await self.on_event(path_to_add)
+        last_run_detector = \
+            await create_last_run_detector(self.config.watch_dir, self.config.instrument_folder, _event_occurred,
+                                           run_file_prefix=self.config.run_file_prefix, db_ip=self.config.db_ip,
+                                           db_username=self.config.db_username, db_password=self.config.db_password)
+        try:
+            await last_run_detector.watch_for_new_runs()
+        except Exception as exception:
+            logger.info("File observer fell over watching because of the following exception:")
+            logger.exception(exception)
 
 
 async def start() -> None:
     """
-    Start the producer, file watcher and creating the queue
+    Create the file watcher and start watching for changes
     :return: None
     """
     config = load_config()
-    producer = await setup_producer(config)
-    await start_watching(producer, config)
+    file_watcher = FileWatcher(config)
+    await file_watcher._init()
+    await file_watcher.start_watching()
 
 
 def main():
