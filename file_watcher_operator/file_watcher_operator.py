@@ -104,19 +104,3 @@ def create_fn(spec, **kwargs):
         return {"children": [depl.metadata.uid]}
     except Exception as e:
         logger.error("Exception raised when creating deployment: %s", e)
-
-
-@kopf.on.update("ir.com", "v1", "filewatchers")
-def update_fn(spec, namespace, **kwargs):
-    name = kwargs["body"]["metadata"]["name"]
-
-    deployment_spec = generate_deployment_body(spec, name)
-
-    api = kubernetes.client.AppsV1Api()
-    api.patch_namespaced_deployment(
-        namespace=namespace,
-        name=name,
-        body=deployment_spec
-    )
-
-    logger.info(f"Patch applied to: {name}")
