@@ -63,7 +63,8 @@ class FileWatcher:
 
     async def connect_to_broker(self):
         logger.info("Connecting to memphis at host: %s", self.config.host)
-        await self.memphis.connect(host=self.config.host, username=self.config.username, password=self.config.password)
+        await self.memphis.connect(host=self.config.host, username=self.config.username,
+                                   password=self.config.password, timeout_ms=30000)
         logger.info("Connected to memphis")
 
     async def setup_producer(self) -> Producer:
@@ -81,8 +82,8 @@ class FileWatcher:
         if path.is_dir():
             logger.info("Skipping directory creation for: %s", str_path)
         else:
-            if not self.memphis.is_connection_active:
-                logger.info("Memphis not connected... attempt to reestablish connection")
+            if not self.memphis.is_connected():
+                logger.info("Memphis is not connected...")
                 await self.connect_to_broker()
             logger.info("Producing message: %s", str_path)
             await self.producer.produce(bytearray(str_path, "utf-8"))

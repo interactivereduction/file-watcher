@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 from pathlib import Path
 from time import sleep
 from typing import Callable
@@ -42,6 +43,7 @@ class LastRunDetector:
             logger.info(f"Recovering lost runs between {self.latest_known_run_from_db} and "
                         f"{self.last_recorded_run_from_file}")
             await self.recover_lost_runs(self.latest_known_run_from_db, self.last_recorded_run_from_file)
+            self.latest_known_run_from_db = self.last_recorded_run_from_file
 
     def get_latest_run_from_db(self) -> str:
         # This likely contains NDX<INSTNAME> so remove the NDX and go for it with the DB
@@ -77,8 +79,10 @@ class LastRunDetector:
                 raise FileNotFoundError(f"This run number doesn't have a file: {run_number}")
         return path
 
-    async def new_run_detected(self, run_number: str):
-        await self.async_callback(self.generate_run_path(run_number))
+    async def new_run_detected(self, run_number: str, run_path: Path = None) -> None:
+        if run_path is None and run_number is not None:
+            run_path = self.generate_run_path(run_number)
+        await self.async_callback(run_path)
         self.update_db_with_latest_run(run_number)
         self.last_recorded_run_from_file = run_number
 
@@ -89,18 +93,45 @@ class LastRunDetector:
                 raise RuntimeError(f"Unexpected last run file format for '{self.last_run_file}'")
         return line_parts[1]
 
-    async def recover_lost_runs(self, earlier_run, later_run):
+    async def recover_lost_runs(self, earlier_run: str, later_run: str):
         """
         The aim is to send all the runs that have not been sent, in between the two passed run numbers, it will also
         submit the value for later_run
         """
+        def grab_zeros_from_beginning_of_string(s: str) -> str:
+            match = re.match(r'^0*', s)
+            if match:
+                return match.group(0)
+            else:
+                return ''
+        initial_zeros = grab_zeros_from_beginning_of_string(earlier_run)
+
         for run in range(int(earlier_run) + 1, int(later_run) + 1):
             # If file exists new run detected
-            run_path = self.generate_run_path(str(run))
-            if run_path.exists():
-                await self.new_run_detected(str(run))
+            actual_run_number = initial_zeros + str(run)
+
+            # Handle edge case where 1 less zero is needed when the numbers roll over
+            if len(initial_zeros) > 1:
+                actual_run_number_1_less_zero = initial_zeros[1:]
             else:
-                logger.log(f"Run cannot be recovered as the file/path does not exist: {run_path}")
+                # In the case where there are no 0s don't handle it at all.
+                actual_run_number_1_less_zero = actual_run_number
+
+            try:
+                # Generate run_path which checks that path is genuine and exists
+                run_path = self.generate_run_path(actual_run_number)
+                await self.new_run_detected(actual_run_number, run_path=run_path)
+            except FileNotFoundError:
+                try:
+                    if actual_run_number_1_less_zero != actual_run_number:
+                        alt_run_path = self.generate_run_path(actual_run_number_1_less_zero)
+                        await self.new_run_detected(actual_run_number_1_less_zero, run_path=alt_run_path)
+                    else:
+                        raise FileNotFoundError(f"Alt run path does not exist, and neither does original path, "
+                                                f"run number: {actual_run_number} does not exist as a .nxs file in "
+                                                f"latest cycle.")
+                except FileNotFoundError as exception:
+                    logger.exception(exception)
 
     def update_db_with_latest_run(self, run_number):
         # This likely contains NDX<INSTNAME> so remove the NDX and go for it with the DB

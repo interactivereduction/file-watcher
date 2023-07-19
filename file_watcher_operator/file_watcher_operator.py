@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 
 import kopf as kopf
@@ -15,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 def generate_deployment_body(spec, name):
+    archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
+    memphis_host = os.environ.get("MEMPHIS_HOST", "memphis.memphis.svc.cluster.local")
+    memphis_station = os.environ.get("MEMPHIS_STATION", "watched-files")
+    file_watcher_sha = os.environ.get("FILE_WATCHER_SHA256", "")
+    db_ip = os.environ.get("DB_IP", "localhost")
     deployment_spec = yaml.safe_load(f"""
             apiVersion: apps/v1
             kind: Deployment
@@ -34,22 +40,22 @@ def generate_deployment_body(spec, name):
                 spec:
                   containers:
                   - name: {name}-file-watcher
-                    image: ghcr.io/interactivereduction/filewatcher@sha256:{spec.get("fileWatcherSha256", "")}
+                    image: ghcr.io/interactivereduction/filewatcher@sha256:{file_watcher_sha}
                     env:
                     - name: MEMPHIS_HOST
-                      value: {spec.get("memphisHost", "localhost")}
+                      value: {memphis_host}
                     - name: MEMPHIS_STATION
-                      value: {spec.get("memphisStation", "watched-files")}
+                      value: {memphis_station}
                     - name: MEMPHIS_PRODUCER_NAME
                       value: {name}-filewatcher
                     - name: WATCH_DIR
-                      value: {spec.get("archiveDir", "/archive")}
+                      value: {archive_dir}
                     - name: FILE_PREFIX
                       value: {spec.get("filePrefix", "MAR")}
                     - name: INSTRUMENT_FOLDER
                       value: {spec.get("instrumentFolder", "NDXMAR")}
                     - name: DB_IP
-                      value: {spec.get("dbIp", "localhost")}
+                      value: {db_ip}
 
                     # Secrets
                     - name: MEMPHIS_USER
@@ -74,12 +80,12 @@ def generate_deployment_body(spec, name):
                           key: db_password
                     volumeMounts:
                       - name: archive-mount
-                        mountPath: {spec.get("archiveDir", "/archive")}
+                        mountPath: {archive_dir}
                   volumes:
                     - name: archive-mount
                       hostPath:
                         type: Directory
-                        path: {spec.get("archiveDir", "/archive")}     
+                        path: {archive_dir}     
         """)
     return deployment_spec
 

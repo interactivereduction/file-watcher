@@ -41,7 +41,7 @@ class DBUpdater:
                 row.latest_run = latest_run
             session.add(row)
             session.commit()
-            logger.info(f"Latest run {latest_run} for {row.instrument_name} added to the DB")
+            logger.info(f"Latest run {row.latest_run} for {row.instrument_name} added to the DB")
 
     def get_latest_run(self, instrument: str):
         with self.session_maker_func() as session:
