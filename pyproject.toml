@@ -8,7 +8,6 @@ dependencies = [
     "SQLAlchemy==2.0.13"
 ]
 
-
 [project.urls]
 "Repository" = "https://github.com/interactivereduction/file-watcher"
 
@@ -35,7 +34,6 @@ code-inspection = [
 dev = [
     "file_watcher[code-inspection]"
 ]
-
 
 [tool.setuptools]
 packages = ["file_watcher"]

@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from memphis import Memphis  # type: ignore
+from memphis import Memphis, MemphisError  # type: ignore
 from memphis.producer import Producer  # type: ignore
 
 from file_watcher.lastrun_file_monitor import create_last_run_detector
@@ -86,20 +86,26 @@ class FileWatcher:
                 logger.info("Memphis is not connected...")
                 await self.connect_to_broker()
             logger.info("Producing message: %s", str_path)
-            await self.producer.produce(bytearray(str_path, "utf-8"))
+            try:
+                await self.producer.produce(bytearray(str_path, "utf-8"))
+            except MemphisError:
+                # Assume an error connecting to memphis, connect again and resubmit
+                await self.connect_to_broker()
+                await self.producer.produce(bytearray(str_path, "utf-8"))
 
     async def start_watching(self) -> None:
         """
         Start the PollingObserver with the queue based event handler and the given queue
-        :param queue: The queue for the event handler to use
         :return: None
         """
         async def _event_occurred(path_to_add):
             await self.on_event(path_to_add)
+
         last_run_detector = \
             await create_last_run_detector(self.config.watch_dir, self.config.instrument_folder, _event_occurred,
                                            run_file_prefix=self.config.run_file_prefix, db_ip=self.config.db_ip,
                                            db_username=self.config.db_username, db_password=self.config.db_password)
+
         try:
             await last_run_detector.watch_for_new_runs()
         except Exception as exception:
