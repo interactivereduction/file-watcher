@@ -120,7 +120,8 @@ class FileWatcher:
         """
 
         async def _event_occurred(path_to_add: Union[Path, None]) -> None:
-            await self.on_event(path_to_add)
+            if path_to_add is not None:
+                await self.on_event(path_to_add)
 
         last_run_detector = await create_last_run_detector(
             self.config.watch_dir,

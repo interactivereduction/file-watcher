@@ -21,7 +21,7 @@ class Instrument(Base):  # type: ignore[valid-type, misc]
     instrument_name = Column(String)
     latest_run = Column(Integer)
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other) -> Union[bool, ColumnElement[bool]]:  # type: ignore[no-untyped-def]
         if isinstance(other, Instrument):
             return self.instrument_name == other.instrument_name and self.latest_run == other.latest_run
         return False
@@ -37,7 +37,7 @@ class DBUpdater:
         engine = create_engine(connection_string, poolclass=QueuePool, pool_size=20, pool_pre_ping=True)
         self.session_maker_func = sessionmaker(bind=engine)
 
-    def update_latest_run(self, instrument: str, latest_run: Integer) -> None:
+    def update_latest_run(self, instrument: str, latest_run: int) -> None:
         """
         Update the DB with the new latest run for specified instrument
         :param instrument: The instrument to be updated
@@ -66,4 +66,4 @@ class DBUpdater:
                 return None
             latest_run = row.latest_run
             logger.info("Latest run for %s is %s in the DB", instrument, latest_run)
-            return latest_run
+            return str(latest_run)
