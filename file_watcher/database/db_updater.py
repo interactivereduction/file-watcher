@@ -21,7 +21,7 @@ class Instrument(Base):  # type: ignore[valid-type, misc]
     instrument_name = Column(String)
     latest_run = Column(Integer)
 
-    def __eq__(self, other) -> Union[bool, ColumnElement[bool]]:  # type: ignore[no-untyped-def]
+    def __eq__(self, other) -> bool:  # type: ignore[no-untyped-def]
         if isinstance(other, Instrument):
             return self.instrument_name == other.instrument_name and self.latest_run == other.latest_run
         return False
