@@ -133,7 +133,7 @@ class FileWatcher:
 
         try:
             await last_run_detector.watch_for_new_runs()
-        except Exception as exception:  # pylint: disable=protected-access
+        except Exception as exception:  # pylint: disable=broad-exception-caught
             logger.info("File observer fell over watching because of the following exception:")
             logger.exception(exception)
 

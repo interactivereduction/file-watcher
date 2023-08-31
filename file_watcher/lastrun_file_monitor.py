@@ -155,6 +155,11 @@ class LastRunDetector:
         return path
 
     async def new_run_detected(self, run_number: str, run_path: Path = None) -> None:
+        """
+        Called when a new run is detected, you can use the run number OR the run path
+        :param run_number: The run number that was detected or
+        :param run_path: The run path that was detected
+        """
         if run_path is None and run_number is not None:
             try:
                 run_path = self.generate_run_path(run_number)
@@ -218,8 +223,8 @@ class LastRunDetector:
                             f"run number: {actual_run_number} does not exist as a .nxs file in "
                             "latest cycle."
                         ) from exception
-                except FileNotFoundError as exception:
-                    logger.exception(exception)
+                except FileNotFoundError as exception_:
+                    logger.exception(exception_)
 
     def update_db_with_latest_run(self, run_number):
         """

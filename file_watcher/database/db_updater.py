@@ -1,5 +1,5 @@
 """
-Handles all database interactions for the file_watcher
+Handles all database interactions for the file_watcher 
 """
 
 from sqlalchemy import (  # type: ignore[attr-defined]
@@ -8,7 +8,7 @@ from sqlalchemy import (  # type: ignore[attr-defined]
     Integer,
     String, QueuePool
 )
-from sqlalchemy.orm import relationship, sessionmaker, declarative_base  # type: ignore[attr-defined]
+from sqlalchemy.orm import sessionmaker, declarative_base  # type: ignore[attr-defined]
 
 from file_watcher.utils import logger
 
@@ -19,6 +19,7 @@ class Instrument(Base):  # type: ignore[valid-type, misc]
     """
     The base instrument class that reflects on the instrument table in the database
     """
+
     __tablename__ = "instruments"
     id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
     instrument_name = Column(String)
@@ -26,10 +27,7 @@ class Instrument(Base):  # type: ignore[valid-type, misc]
 
     def __eq__(self, other):
         if isinstance(other, Instrument):
-            return (
-                self.instrument_name == other.instrument_name
-                and self.latest_run == other.latest_run
-            )
+            return self.instrument_name == other.instrument_name and self.latest_run == other.latest_run
         return False
 
 
@@ -37,6 +35,7 @@ class DBUpdater:
     """
     The class responsible for the interacting with the database.
     """
+
     def __init__(self, ip: str, username: str, password: str):
         connection_string = f"postgresql+psycopg2://{username}:{password}@{ip}:5432/interactive-reduction"
         engine = create_engine(connection_string, poolclass=QueuePool, pool_size=20, pool_pre_ping=True)
@@ -69,7 +68,6 @@ class DBUpdater:
             if row is None:
                 logger.info("No run in the DB for %s", instrument)
                 return None
-            else:
-                latest_run = row.latest_run
-                logger.info("Latest run for %s is %s in the DB", instrument, latest_run)
-                return latest_run
+            latest_run = row.latest_run
+            logger.info("Latest run for %s is %s in the DB", instrument, latest_run)
+            return latest_run
