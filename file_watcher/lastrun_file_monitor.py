@@ -15,31 +15,6 @@ from file_watcher.database.db_updater import DBUpdater
 from file_watcher.utils import logger
 
 
-async def create_last_run_detector(
-    archive_path: Path,
-    instrument: str,
-    callback: Callable[[Path], None],
-    run_file_prefix: str,
-    db_ip: str,
-    db_username: str,
-    db_password: str,
-) -> LastRunDetector:
-    """
-    Create asynchronously the LastRunDetector object,
-    :param archive_path: The path to the archive on this host
-    :param instrument: The instrument folder to be used in the archive
-    :param callback: The function to be called when a new run is detected
-    :param run_file_prefix: The prefix for the .nxs files e.g. MAR for MARI or WISH for WISH
-    :param db_ip: The ip of the database
-    :param db_username: The username used for the database
-    :param db_password: The password used for the database
-    :return:
-    """
-    lrd = LastRunDetector(archive_path, instrument, callback, run_file_prefix, db_ip, db_username, db_password)
-    await lrd._init()  # pylint: disable=protected-access
-    return lrd
-
-
 class LastRunDetector:
     """
     The last run detector is a class to detect when a new run has occured and callback, then recover lost runs that
@@ -262,3 +237,28 @@ class LastRunDetector:
             raise FileNotFoundError(f"No cycles present in archive path: {self.archive_path}") from exc
         logger.info("Latest cycle found: %s", most_recent_cycle)
         return most_recent_cycle
+
+
+async def create_last_run_detector(
+    archive_path: Path,
+    instrument: str,
+    callback: Callable[[Path], None],
+    run_file_prefix: str,
+    db_ip: str,
+    db_username: str,
+    db_password: str,
+) -> LastRunDetector:
+    """
+    Create asynchronously the LastRunDetector object,
+    :param archive_path: The path to the archive on this host
+    :param instrument: The instrument folder to be used in the archive
+    :param callback: The function to be called when a new run is detected
+    :param run_file_prefix: The prefix for the .nxs files e.g. MAR for MARI or WISH for WISH
+    :param db_ip: The ip of the database
+    :param db_username: The username used for the database
+    :param db_password: The password used for the database
+    :return:
+    """
+    lrd = LastRunDetector(archive_path, instrument, callback, run_file_prefix, db_ip, db_username, db_password)
+    await lrd._init()  # pylint: disable=protected-access
+    return lrd
