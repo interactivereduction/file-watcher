@@ -25,7 +25,7 @@ class LastRunDetector:
         self,
         archive_path: Path,
         instrument: str,
-        async_callback: Callable[[Path | None], Coroutine[Any, Any, None]],
+        async_callback: Callable[[Path, None], Coroutine[Any, Any, None]],
         run_file_prefix: str,
         db_ip: str,
         db_username: str,
@@ -247,7 +247,7 @@ class LastRunDetector:
 async def create_last_run_detector(
     archive_path: Path,
     instrument: str,
-    callback: Callable[[Path | None], Coroutine[Any, Any, None]],
+    callback: Callable[[Path, None], Coroutine[Any, Any, None]],
     run_file_prefix: str,
     db_ip: str,
     db_username: str,

@@ -3,7 +3,7 @@ Handles all database interactions for the file_watcher
 """
 from typing import Union
 
-from sqlalchemy import create_engine, Column, Integer, String, QueuePool
+from sqlalchemy import create_engine, Column, Integer, String, QueuePool, ColumnElement
 from sqlalchemy.orm import sessionmaker, declarative_base
 
 from file_watcher.utils import logger
