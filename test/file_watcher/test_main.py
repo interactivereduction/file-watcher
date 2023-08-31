@@ -1,3 +1,5 @@
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+
 import os
 import tempfile
 import unittest
@@ -82,10 +84,9 @@ class MainTest(unittest.IsolatedAsyncioTestCase):
 
             await self.file_watcher.connect_to_broker()
 
-            self.file_watcher.memphis.connect.assert_called_with(host=self.config.host,
-                                                                 username=self.config.username,
-                                                                 password=self.config.password,
-                                                                 timeout_ms=30000)
+            self.file_watcher.memphis.connect.assert_called_with(
+                host=self.config.host, username=self.config.username, password=self.config.password, timeout_ms=30000
+            )
             self.assertEqual(self.file_watcher.memphis.connect.call_count, 2)
 
     @pytest.mark.asyncio
@@ -97,9 +98,11 @@ class MainTest(unittest.IsolatedAsyncioTestCase):
 
             await self.file_watcher.setup_producer()
 
-            self.file_watcher.memphis.producer.assert_called_with(station_name=self.config.station_name,
-                                                                  producer_name=self.config.producer_name,
-                                                                  generate_random_suffix=True)
+            self.file_watcher.memphis.producer.assert_called_with(
+                station_name=self.config.station_name,
+                producer_name=self.config.producer_name,
+                generate_random_suffix=True,
+            )
             self.assertEqual(self.file_watcher.memphis.producer.call_count, 2)
 
     @pytest.mark.asyncio
@@ -112,7 +115,7 @@ class MainTest(unittest.IsolatedAsyncioTestCase):
             self.file_watcher.memphis.is_connected = mock.MagicMock(return_value=False)
 
             with tempfile.NamedTemporaryFile(delete=False) as fp:
-                fp.write(b'Hello world!')
+                fp.write(b"Hello world!")
                 path = Path(fp.name)
 
             await self.file_watcher.on_event(path)
@@ -135,7 +138,7 @@ class MainTest(unittest.IsolatedAsyncioTestCase):
             self.file_watcher.connect_to_broker = AwaitableNonAsyncMagicMock()
 
             with tempfile.NamedTemporaryFile(delete=False) as fp:
-                fp.write(b'Hello world!')
+                fp.write(b"Hello world!")
                 path = Path(fp.name)
 
             with self.assertRaises(MemphisError):
@@ -155,7 +158,7 @@ class MainTest(unittest.IsolatedAsyncioTestCase):
             self.file_watcher.is_connected = mock.MagicMock(return_value=True)
 
             with tempfile.NamedTemporaryFile(delete=False) as fp:
-                fp.write(b'Hello world!')
+                fp.write(b"Hello world!")
                 path = Path(fp.name)
 
             await self.file_watcher.on_event(path)
@@ -190,21 +193,23 @@ class MainTest(unittest.IsolatedAsyncioTestCase):
 
                     def raise_exception():
                         raise exception
-                    create_last_run_detector.return_value.watch_for_new_runs = \
-                        AwaitableNonAsyncMagicMock(side_effect=raise_exception)
+
+                    create_last_run_detector.return_value.watch_for_new_runs = AwaitableNonAsyncMagicMock(
+                        side_effect=raise_exception
+                    )
 
                     # Should not raise, if raised it does not handle exceptions correctly
                     await self.file_watcher.start_watching()
 
                     create_last_run_detector.return_value.watch_for_new_runs.assert_called_once_with()
-                    logger.info.assert_called_with("File observer fell over watching because of the following "
-                                                   "exception:")
+                    logger.info.assert_called_with(
+                        "File observer fell over watching because of the following exception:"
+                    )
                     logger.exception.assert_called_with(exception)
 
     @pytest.mark.asyncio
     async def test_file_watcher_start_watching_creates_last_run_detector(self):
-        with mock.patch("file_watcher.main.create_last_run_detector",
-                        new=AsyncMock()) as create_last_run_detector:
+        with mock.patch("file_watcher.main.create_last_run_detector", new=AsyncMock()) as create_last_run_detector:
             with mock.patch("file_watcher.main.Memphis", new=AwaitableNonAsyncMagicMock()) as _:
                 self.file_watcher = FileWatcher(self.config)
                 await self.file_watcher._init()

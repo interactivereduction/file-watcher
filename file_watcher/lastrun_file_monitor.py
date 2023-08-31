@@ -1,3 +1,9 @@
+# pylint: disable=too-many-arguments, too-many-instance-attributes
+"""
+The module responsible for handling Last run detection including the LastRunDetector class and the creation of those
+objects
+"""
+
 import datetime
 import os
 import re
@@ -18,12 +24,28 @@ async def create_last_run_detector(
     db_username: str,
     db_password: str,
 ):
+    """
+    Create asynchronously the LastRunDetector object,
+    :param archive_path: The path to the archive on this host
+    :param instrument: The instrument folder to be used in the archive
+    :param callback: The function to be called when a new run is detected
+    :param run_file_prefix: The prefix for the .nxs files e.g. MAR for MARI or WISH for WISH
+    :param db_ip: The ip of the database
+    :param db_username: The username used for the database
+    :param db_password: The password used for the database
+    :return:
+    """
     lrd = LastRunDetector(archive_path, instrument, callback, run_file_prefix, db_ip, db_username, db_password)
-    await lrd._init()
+    await lrd._init()  # pylint: disable=protected-access
     return lrd
 
 
 class LastRunDetector:
+    """
+    The last run detector is a class to detect when a new run has occured and callback, then recover lost runs that
+    were missed.
+    """
+
     def __init__(
         self,
         archive_path: Path,
@@ -40,23 +62,30 @@ class LastRunDetector:
         self.archive_path = archive_path
         self.last_run_file = archive_path.joinpath(instrument).joinpath("Instrument/logs/lastrun.txt")
         self.last_recorded_run_from_file = self.get_last_run_from_file()
-        logger.info(f"Last run in lastrun.txt for instrument {self.instrument} is: {self.last_recorded_run_from_file}")
+        logger.info(
+            "Last run in lastrun.txt for instrument %s is: %s", self.instrument, self.last_recorded_run_from_file
+        )
         self.last_cycle_folder_check = datetime.datetime.now()
         self.latest_cycle = self.get_latest_cycle()
 
         # Database setup and checks if runs missed then recovery
-        self.db = DBUpdater(ip=db_ip, username=db_username, password=db_password)
+        self.db_updater = DBUpdater(ip=db_ip, username=db_username, password=db_password)
         self.latest_known_run_from_db = self.get_latest_run_from_db()
-        logger.info(f"Last run in DB is: {self.latest_known_run_from_db}")
+        logger.info("Last run in DB is: %s", self.latest_known_run_from_db)
         if self.latest_known_run_from_db is None:
-            logger.info(f"Adding latest run to DB as there is no data: {self.last_recorded_run_from_file}")
+            logger.info("Adding latest run to DB as there is no data: %s", self.last_recorded_run_from_file)
             self.update_db_with_latest_run(self.last_recorded_run_from_file)
             self.latest_known_run_from_db = self.last_recorded_run_from_file
 
     async def _init(self):
+        """
+        This function needs to be called before any other function and is the equivalent of a setup, it has to be
+        done outside __init__ because it is an Async function, and async functionality cannot be completed inside
+        __init__.
+        """
         if int(self.latest_known_run_from_db) < int(self.last_recorded_run_from_file):
             logger.info(
-                f"Recovering lost runs between {self.latest_known_run_from_db} and {self.last_recorded_run_from_file}"
+                "Recovering lost runs between %s and%s", self.last_recorded_run_from_file, self.latest_known_run_from_db
             )
             await self.recover_lost_runs(self.latest_known_run_from_db, self.last_recorded_run_from_file)
             self.latest_known_run_from_db = self.last_recorded_run_from_file
@@ -64,7 +93,7 @@ class LastRunDetector:
     def get_latest_run_from_db(self) -> str:
         # This likely contains NDX<INSTNAME> so remove the NDX and go for it with the DB
         actual_instrument = self.instrument[3:]
-        return self.db.get_latest_run(actual_instrument)
+        return self.db_updater.get_latest_run(actual_instrument)
 
     async def watch_for_new_runs(self, run_once=False):
         logger.info("Starting watcher...")
@@ -88,7 +117,7 @@ class LastRunDetector:
                 logger.exception(exception)
                 continue
             if run_in_file != self.last_recorded_run_from_file:
-                logger.info(f"New run detected: {run_in_file}")
+                logger.info(f"New run detected: %s", run_in_file)
                 # If difference > 1 then try to recover potentially missed runs:
                 if int(run_in_file) - int(self.last_recorded_run_from_file) > 1:
                     await self.recover_lost_runs(self.last_recorded_run_from_file, run_in_file)
@@ -107,8 +136,8 @@ class LastRunDetector:
         if not path.exists():
             try:
                 path = self.find_file_in_instruments_data_folder(run_number)
-            except:
-                raise FileNotFoundError(f"This run number doesn't have a file: {run_number}")
+            except Exception as exc:
+                raise FileNotFoundError(f"This run number doesn't have a file: {run_number}") from exc
         return path
 
     async def new_run_detected(self, run_number: str, run_path: Path = None) -> None:
@@ -176,7 +205,7 @@ class LastRunDetector:
     def update_db_with_latest_run(self, run_number):
         # This likely contains NDX<INSTNAME> so remove the NDX and go for it with the DB
         actual_instrument = self.instrument[3:]
-        self.db.update_latest_run(actual_instrument, run_number)
+        self.db_updater.update_latest_run(actual_instrument, run_number)
 
     def find_file_in_instruments_data_folder(self, run_number: str) -> Path:
         """
@@ -198,7 +227,7 @@ class LastRunDetector:
         all_cycles.sort()
         try:
             most_recent_cycle = all_cycles[-1]
-        except IndexError:
-            raise FileNotFoundError(f"No cycles present in archive path: {self.archive_path}")
-        logger.info(f"Latest cycle found: {most_recent_cycle}")
+        except IndexError as exc:
+            raise FileNotFoundError(f"No cycles present in archive path: {self.archive_path}") from exc
+        logger.info(f"Latest cycle found: %s", most_recent_cycle)
         return most_recent_cycle

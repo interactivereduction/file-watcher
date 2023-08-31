@@ -1,3 +1,5 @@
+# pylint: disable=missing-module-docstring, missing-class-docstring, missing-function-docstring
+
 import tempfile
 import unittest
 from datetime import datetime, timedelta
@@ -7,7 +9,7 @@ from unittest.mock import call
 
 import pytest
 
-from file_watcher.lastrun_file_monitor import create_last_run_detector, LastRunDetector
+from file_watcher.lastrun_file_monitor import create_last_run_detector
 from test.file_watcher.utils import AwaitableNonAsyncMagicMock
 
 
@@ -401,11 +403,11 @@ class LastRunFileMonitorTest(unittest.IsolatedAsyncioTestCase):
                 self.db_password,
             )
             self.lrd.instrument = "NDXMARI"
-            self.lrd.db.update_latest_run = mock.MagicMock()
+            self.lrd.db_updater.update_latest_run = mock.MagicMock()
 
             self.lrd.update_db_with_latest_run("0001")
 
-            self.lrd.db.update_latest_run.assert_called_once_with("MARI", "0001")
+            self.lrd.db_updater.update_latest_run.assert_called_once_with("MARI", "0001")
 
     @pytest.mark.asyncio
     async def test_find_file_in_instruments_data_folder_finds_file_in_instrument_data_folder(
