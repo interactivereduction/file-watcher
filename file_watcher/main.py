@@ -6,6 +6,7 @@ import asyncio
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Union
 
 from memphis import Memphis, MemphisError  # type: ignore
 from memphis.producer import Producer  # type: ignore
@@ -59,11 +60,11 @@ class FileWatcher:
     received those messages.
     """
 
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
         self.memphis = Memphis()
 
-    async def _init(self):
+    async def _init(self) -> None:
         """
         This function needs to be called before any other function and is the equivalent of a setup, it has to be
         done outside __init__ because it is an Async function, and async functionality cannot be completed inside
@@ -72,7 +73,7 @@ class FileWatcher:
         await self.connect_to_broker()
         self.producer = await self.setup_producer()  # pylint: disable=attribute-defined-outside-init
 
-    async def connect_to_broker(self):
+    async def connect_to_broker(self) -> None:
         """
         A function to connect to the memphis broker can be called multiple times in a row without issue
         """
@@ -118,7 +119,7 @@ class FileWatcher:
         :return: None
         """
 
-        async def _event_occurred(path_to_add):
+        async def _event_occurred(path_to_add: Union[Path, None]) -> None:
             await self.on_event(path_to_add)
 
         last_run_detector = await create_last_run_detector(
@@ -149,7 +150,7 @@ async def start() -> None:
     await file_watcher.start_watching()
 
 
-def main():
+def main() -> None:
     """Main function"""
     asyncio.run(start())
 

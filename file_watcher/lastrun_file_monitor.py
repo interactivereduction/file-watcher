@@ -9,7 +9,7 @@ import os
 import re
 from pathlib import Path
 from time import sleep
-from typing import Callable
+from typing import Callable, Union
 
 from file_watcher.database.db_updater import DBUpdater
 from file_watcher.utils import logger
@@ -18,12 +18,12 @@ from file_watcher.utils import logger
 async def create_last_run_detector(
     archive_path: Path,
     instrument: str,
-    callback: Callable,
+    callback: Callable[[Path], None],
     run_file_prefix: str,
     db_ip: str,
     db_username: str,
     db_password: str,
-):
+) -> LastRunDetector:
     """
     Create asynchronously the LastRunDetector object,
     :param archive_path: The path to the archive on this host
@@ -77,7 +77,7 @@ class LastRunDetector:
             self.update_db_with_latest_run(self.last_recorded_run_from_file)
             self.latest_known_run_from_db = self.last_recorded_run_from_file
 
-    async def _init(self):
+    async def _init(self) -> None:
         """
         This function needs to be called before any other function and is the equivalent of a setup, it has to be
         done outside __init__ because it is an Async function, and async functionality cannot be completed inside
@@ -90,7 +90,7 @@ class LastRunDetector:
             await self.recover_lost_runs(self.latest_known_run_from_db, self.last_recorded_run_from_file)
             self.latest_known_run_from_db = self.last_recorded_run_from_file
 
-    def get_latest_run_from_db(self) -> str:
+    def get_latest_run_from_db(self) -> Union[str, None]:
         """
         Retrieve the latest run from the database
         :return: Return the latest run for the instrument that is set on this object
@@ -99,7 +99,7 @@ class LastRunDetector:
         actual_instrument = self.instrument[3:]
         return self.db_updater.get_latest_run(actual_instrument)
 
-    async def watch_for_new_runs(self, run_once=False):
+    async def watch_for_new_runs(self, run_once=False) -> None:
         """
         This is the main loop for waiting for new runs and triggering
         :param run_once: Defaults to False, and will only run the loop once, aimed at simplicity for testing.
@@ -154,7 +154,7 @@ class LastRunDetector:
                 raise FileNotFoundError(f"This run number doesn't have a file: {run_number}") from exc
         return path
 
-    async def new_run_detected(self, run_number: str, run_path: Path = None) -> None:
+    async def new_run_detected(self, run_number: str, run_path: Union[Path, None] = None) -> None:
         """
         Called when a new run is detected, you can use the run number OR the run path
         :param run_number: The run number that was detected or
@@ -181,7 +181,7 @@ class LastRunDetector:
                 raise RuntimeError(f"Unexpected last run file format for '{self.last_run_file}'")
         return line_parts[1]
 
-    async def recover_lost_runs(self, earlier_run: str, later_run: str):
+    async def recover_lost_runs(self, earlier_run: str, later_run: str) -> None:
         """
         The aim is to send all the runs that have not been sent, in between the two passed run numbers, it will also
         submit the value for later_run
@@ -226,7 +226,7 @@ class LastRunDetector:
                 except FileNotFoundError as exception_:
                     logger.exception(exception_)
 
-    def update_db_with_latest_run(self, run_number):
+    def update_db_with_latest_run(self, run_number) -> None:
         """
         Change the details in the database to reflect this number
         :param run_number: The run number to be put into the database to reflect the most recent detected work

@@ -1,14 +1,10 @@
 """
 Handles all database interactions for the file_watcher 
 """
+from typing import Union
 
-from sqlalchemy import (  # type: ignore[attr-defined]
-    create_engine,
-    Column,
-    Integer,
-    String, QueuePool
-)
-from sqlalchemy.orm import sessionmaker, declarative_base  # type: ignore[attr-defined]
+from sqlalchemy import create_engine, Column, Integer, String, QueuePool
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 from file_watcher.utils import logger
 
@@ -25,7 +21,7 @@ class Instrument(Base):  # type: ignore[valid-type, misc]
     instrument_name = Column(String)
     latest_run = Column(Integer)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if isinstance(other, Instrument):
             return self.instrument_name == other.instrument_name and self.latest_run == other.latest_run
         return False
@@ -52,12 +48,12 @@ class DBUpdater:
             if row is None:
                 row = Instrument(instrument_name=instrument, latest_run=latest_run)
             else:
-                row.latest_run = latest_run
+                row.latest_run = latest_run  # type: ignore[assignment]
             session.add(row)
             session.commit()
             logger.info("Latest run %s for %s added to the DB", row.latest_run, row.instrument_name)
 
-    def get_latest_run(self, instrument: str):
+    def get_latest_run(self, instrument: str) -> Union[str, None]:
         """
         Get the latest run from the DB for specified instrument
         :param instrument: The instrument to get the latest run from
