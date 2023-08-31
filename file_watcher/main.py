@@ -1,3 +1,4 @@
+# pylint: disable=too-many-instance-attributes
 """
 Main module
 """
@@ -48,23 +49,37 @@ def load_config() -> Config:
         os.environ.get("INSTRUMENT_FOLDER", "NDXMARI"),
         os.environ.get("DB_IP", "localhost"),
         os.environ.get("DB_USERNAME", "admin"),
-        os.environ.get("DB_PASSWORD", "admin")
+        os.environ.get("DB_PASSWORD", "admin"),
     )
 
 
 class FileWatcher:
+    """
+    The FileWatcher is responsible for owning and running the latest run file detector and then ensuring that Memphis
+    received those messages.
+    """
+
     def __init__(self, config):
         self.config = config
         self.memphis = Memphis()
 
     async def _init(self):
+        """
+        This function needs to be called before any other function and is the equivalent of a setup, it has to be
+        done outside __init__ because it is an Async function, and async functionality cannot be completed inside
+        __init__.
+        """
         await self.connect_to_broker()
-        self.producer = await self.setup_producer()
+        self.producer = await self.setup_producer()  # pylint: disable=attribute-defined-outside-init
 
     async def connect_to_broker(self):
+        """
+        A function to connect to the memphis broker can be called multiple times in a row without issue
+        """
         logger.info("Connecting to memphis at host: %s", self.config.host)
-        await self.memphis.connect(host=self.config.host, username=self.config.username,
-                                   password=self.config.password, timeout_ms=30000)
+        await self.memphis.connect(
+            host=self.config.host, username=self.config.username, password=self.config.password, timeout_ms=30000
+        )
         logger.info("Connected to memphis")
 
     async def setup_producer(self) -> Producer:
@@ -73,11 +88,15 @@ class FileWatcher:
         :return: The memphis producer
         """
         logger.info("Creating producer: %s at station: %s", self.config.producer_name, self.config.station_name)
-        return await self.memphis.producer(station_name=self.config.station_name,
-                                           producer_name=self.config.producer_name,
-                                           generate_random_suffix=True)
+        return await self.memphis.producer(
+            station_name=self.config.station_name, producer_name=self.config.producer_name, generate_random_suffix=True
+        )
 
     async def on_event(self, path: Path) -> None:
+        """
+        The function to be called when you have a new file detected, it will talk to memphis and produce a new message
+        :param path: The path that should be the contents of the Memphis message
+        """
         str_path = str(path)
         if path.is_dir():
             logger.info("Skipping directory creation for: %s", str_path)
@@ -98,17 +117,23 @@ class FileWatcher:
         Start the PollingObserver with the queue based event handler and the given queue
         :return: None
         """
+
         async def _event_occurred(path_to_add):
             await self.on_event(path_to_add)
 
-        last_run_detector = \
-            await create_last_run_detector(self.config.watch_dir, self.config.instrument_folder, _event_occurred,
-                                           run_file_prefix=self.config.run_file_prefix, db_ip=self.config.db_ip,
-                                           db_username=self.config.db_username, db_password=self.config.db_password)
+        last_run_detector = await create_last_run_detector(
+            self.config.watch_dir,
+            self.config.instrument_folder,
+            _event_occurred,
+            run_file_prefix=self.config.run_file_prefix,
+            db_ip=self.config.db_ip,
+            db_username=self.config.db_username,
+            db_password=self.config.db_password,
+        )
 
         try:
             await last_run_detector.watch_for_new_runs()
-        except Exception as exception:
+        except Exception as exception:  # pylint: disable=protected-access
             logger.info("File observer fell over watching because of the following exception:")
             logger.exception(exception)
 
@@ -120,7 +145,7 @@ async def start() -> None:
     """
     config = load_config()
     file_watcher = FileWatcher(config)
-    await file_watcher._init()
+    await file_watcher._init()  # pylint: disable=protected-access
     await file_watcher.start_watching()
 
 

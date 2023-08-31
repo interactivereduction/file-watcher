@@ -91,11 +91,19 @@ class LastRunDetector:
             self.latest_known_run_from_db = self.last_recorded_run_from_file
 
     def get_latest_run_from_db(self) -> str:
+        """
+        Retrieve the latest run from the database
+        :return: Return the latest run for the instrument that is set on this object
+        """
         # This likely contains NDX<INSTNAME> so remove the NDX and go for it with the DB
         actual_instrument = self.instrument[3:]
         return self.db_updater.get_latest_run(actual_instrument)
 
     async def watch_for_new_runs(self, run_once=False):
+        """
+        This is the main loop for waiting for new runs and triggering
+        :param run_once: Defaults to False, and will only run the loop once, aimed at simplicity for testing.
+        """
         logger.info("Starting watcher...")
         run = True
         while run:
@@ -117,7 +125,7 @@ class LastRunDetector:
                 logger.exception(exception)
                 continue
             if run_in_file != self.last_recorded_run_from_file:
-                logger.info(f"New run detected: %s", run_in_file)
+                logger.info("New run detected: %s", run_in_file)
                 # If difference > 1 then try to recover potentially missed runs:
                 if int(run_in_file) - int(self.last_recorded_run_from_file) > 1:
                     await self.recover_lost_runs(self.last_recorded_run_from_file, run_in_file)
@@ -127,6 +135,12 @@ class LastRunDetector:
             sleep(0.1)
 
     def generate_run_path(self, run_number: str) -> Path:
+        """
+        Generate the path and verify it exists, if it does not exist then search for it, if it can't be found then
+        raise a FileNotFoundError exception.
+        :param run_number: The run number to generate and check for
+        :return: The path to the file for the run number
+        """
         path = (
             self.archive_path.joinpath(self.instrument)
             .joinpath("Instrument/data")
@@ -151,7 +165,11 @@ class LastRunDetector:
         self.update_db_with_latest_run(run_number)
         self.last_recorded_run_from_file = run_number
 
-    def get_last_run_from_file(self):
+    def get_last_run_from_file(self) -> str:
+        """
+        Retrieve the last run from the instrument log's file.
+        :return: The middle of the file, specifically the last run that was in the file.
+        """
         with open(self.last_run_file, mode="r", encoding="utf-8") as last_run:
             line_parts = last_run.readline().split()
             if len(line_parts) != 3:
@@ -162,14 +180,15 @@ class LastRunDetector:
         """
         The aim is to send all the runs that have not been sent, in between the two passed run numbers, it will also
         submit the value for later_run
+        :param earlier_run: The run that was submitted to the db last
+        :param later_run: The run that was last detected
         """
 
-        def grab_zeros_from_beginning_of_string(s: str) -> str:
-            match = re.match(r"^0*", s)
+        def grab_zeros_from_beginning_of_string(string: str) -> str:
+            match = re.match(r"^0*", string)
             if match:
                 return match.group(0)
-            else:
-                return ""
+            return ""
 
         initial_zeros = grab_zeros_from_beginning_of_string(earlier_run)
 
@@ -188,7 +207,7 @@ class LastRunDetector:
                 # Generate run_path which checks that path is genuine and exists
                 run_path = self.generate_run_path(actual_run_number)
                 await self.new_run_detected(actual_run_number, run_path=run_path)
-            except FileNotFoundError:
+            except FileNotFoundError as exception:
                 try:
                     if actual_run_number_1_less_zero != actual_run_number:
                         alt_run_path = self.generate_run_path(actual_run_number_1_less_zero)
@@ -198,11 +217,15 @@ class LastRunDetector:
                             "Alt run path does not exist, and neither does original path, "
                             f"run number: {actual_run_number} does not exist as a .nxs file in "
                             "latest cycle."
-                        )
+                        ) from exception
                 except FileNotFoundError as exception:
                     logger.exception(exception)
 
     def update_db_with_latest_run(self, run_number):
+        """
+        Change the details in the database to reflect this number
+        :param run_number: The run number to be put into the database to reflect the most recent detected work
+        """
         # This likely contains NDX<INSTNAME> so remove the NDX and go for it with the DB
         actual_instrument = self.instrument[3:]
         self.db_updater.update_latest_run(actual_instrument, run_number)
@@ -210,6 +233,8 @@ class LastRunDetector:
     def find_file_in_instruments_data_folder(self, run_number: str) -> Path:
         """
         Slow but guaranteed to find the file if it exists.
+        :param run_number: The run number you need to go and find
+        :return: The Path if it exists of the run number
         """
         instrument_dir = self.archive_path.joinpath(self.instrument).joinpath("Instrument/data")
         return list(instrument_dir.rglob(f"cycle_??_?/*{run_number}.nxs"))[0]
@@ -219,6 +244,7 @@ class LastRunDetector:
         Gets the latest cycle, uses NDXWISH as the bases of it, as it is a TS2 instrument and allows for
         significantly reduced complications vs TS1 instruments who collected data in cycles_98_1 and so on (centuries
         and all that being rather complicated for a machine to understand without appropriate context).
+        :return: The latest cycle in the WISH folder.
         """
         logger.info("Finding latest cycle...")
         # Use WISH (or any other TS2 instrument as their data started in 2008 and avoids the 98/99 issue of TS1
@@ -229,5 +255,5 @@ class LastRunDetector:
             most_recent_cycle = all_cycles[-1]
         except IndexError as exc:
             raise FileNotFoundError(f"No cycles present in archive path: {self.archive_path}") from exc
-        logger.info(f"Latest cycle found: %s", most_recent_cycle)
+        logger.info("Latest cycle found: %s", most_recent_cycle)
         return most_recent_cycle

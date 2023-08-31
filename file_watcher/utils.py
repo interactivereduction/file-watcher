@@ -1,3 +1,6 @@
+"""
+Contains general utilities for the file_watcher module
+"""
 import logging
 import sys
 
