@@ -407,7 +407,7 @@ class LastRunFileMonitorTest(unittest.IsolatedAsyncioTestCase):
 
             self.lrd.update_db_with_latest_run("0001")
 
-            self.lrd.db_updater.update_latest_run.assert_called_once_with("MARI", "0001")
+            self.lrd.db_updater.update_latest_run.assert_called_once_with("MARI", 1)
 
     @pytest.mark.asyncio
     async def test_find_file_in_instruments_data_folder_finds_file_in_instrument_data_folder(

@@ -25,8 +25,9 @@ class LastRunDetector:
         self,
         archive_path: Path,
         instrument: str,
-        async_callback: Callable[[Path | None],
-                                 Coroutine[Any, Any, None]],  # pylint: disable=unsupported-binary-operation
+        async_callback: Callable[
+            [Path | None], Coroutine[Any, Any, None]  # pylint: disable=unsupported-binary-operation
+        ],
         run_file_prefix: str,
         db_ip: str,
         db_username: str,
