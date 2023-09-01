@@ -23,7 +23,7 @@ class Instrument(Base):  # type: ignore[valid-type, misc]
 
     def __eq__(self, other) -> bool:  # type: ignore[no-untyped-def]
         if isinstance(other, Instrument):
-            return self.instrument_name == other.instrument_name and self.latest_run == other.latest_run
+            return bool(self.instrument_name == other.instrument_name and self.latest_run == other.latest_run)
         return False
 
 
