@@ -2,6 +2,8 @@
 ## FileWatcher
 A piece of software designed to look at a instruments lastrun.txt file and determine when a new .nxs file has appeared. Once it has appeared it will send a message to the correct memphis station.
 
+What is the lastrun.txt file? It's a file created by the controls software solution that is updated when a new file is added to the archive, it allows us in this situation to get around some technical deficiencies in file watching on Linux (Specifically there is an issue with inotify with not reporting changes on network mounted shares, which is the way to do this typically on Linux). I am not sure why this file exists, my understanding is that it should stay existing.
+
 There is a recovery attempt that can be made for the instrument, by checking if we have missed any .nxs files from the instrument by using some saved state in the Database.
 
 ## FileWatcherOperator

@@ -91,12 +91,7 @@ class LastRunDetector:
         while run:
             if run_once:
                 run = False
-            current_time = datetime.datetime.now()
-            time_between_cycle_folder_checks = current_time - self.last_cycle_folder_check
-            # If it's been 6 hours do another check for the latest folder
-            if time_between_cycle_folder_checks.total_seconds() > 21600:
-                self.latest_cycle = self.get_latest_cycle()
-                self.last_cycle_folder_check = current_time
+            await self._check_for_new_cycle_folder()
 
             try:
                 run_in_file = self.get_last_run_from_file()
@@ -108,13 +103,24 @@ class LastRunDetector:
                 continue
             if run_in_file != self.last_recorded_run_from_file:
                 logger.info("New run detected: %s", run_in_file)
-                # If difference > 1 then try to recover potentially missed runs:
-                if int(run_in_file) - int(self.last_recorded_run_from_file) > 1:
-                    await self.recover_lost_runs(self.last_recorded_run_from_file, run_in_file)
-                else:
-                    await self.new_run_detected(run_in_file)
+                await self._check_for_missed_runs(run_in_file)
 
             sleep(0.1)
+
+    async def _check_for_missed_runs(self, run_in_file: str) -> None:
+        # If difference > 1 then try to recover potentially missed runs:
+        if int(run_in_file) - int(self.last_recorded_run_from_file) > 1:
+            await self.recover_lost_runs(self.last_recorded_run_from_file, run_in_file)
+        else:
+            await self.new_run_detected(run_in_file)
+
+    async def _check_for_new_cycle_folder(self) -> None:
+        current_time = datetime.datetime.now()
+        time_between_cycle_folder_checks = current_time - self.last_cycle_folder_check
+        # If it's been 6 hours do another check for the latest folder
+        if time_between_cycle_folder_checks.total_seconds() > 21600:
+            self.latest_cycle = self.get_latest_cycle()
+            self.last_cycle_folder_check = current_time
 
     def generate_run_path(self, run_number: str) -> Path:
         """
