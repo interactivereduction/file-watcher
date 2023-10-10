@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
 
-from pika import ConnectionParameters, BlockingConnection
+from pika import ConnectionParameters, BlockingConnection, PlainCredentials
 from pika.adapters.blocking_connection import BlockingChannel
 
 from file_watcher.lastrun_file_monitor import create_last_run_detector
@@ -63,7 +63,8 @@ class FileWatcher:
 
     def get_channel(self) -> BlockingChannel:
         """Get a BlockingChannel"""
-        connection_parameters = ConnectionParameters(self.config.host, 5672)
+        credentials = PlainCredentials(username=self.config.username, password=self.config.password)
+        connection_parameters = ConnectionParameters(self.config.host, 5672, credentials=credentials)
         connection = BlockingConnection(connection_parameters)
         channel = connection.channel()
         channel.exchange_declare(self.config.queue_name, exchange_type="direct", durable=True)
