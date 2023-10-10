@@ -9,7 +9,7 @@ import os
 import re
 from pathlib import Path
 from time import sleep
-from typing import Callable, Union, Coroutine, Any
+from typing import Callable, Union
 
 from file_watcher.database.db_updater import DBUpdater
 from file_watcher.utils import logger
@@ -25,9 +25,7 @@ class LastRunDetector:
         self,
         archive_path: Path,
         instrument: str,
-        async_callback: Callable[
-            [Path | None], Coroutine[Any, Any, None]  # pylint: disable=unsupported-binary-operation
-        ],
+        callback: Callable[[Path | None], None],  # pylint: disable = (unsupported-binary-operation)
         run_file_prefix: str,
         db_ip: str,
         db_username: str,
@@ -35,7 +33,7 @@ class LastRunDetector:
     ):
         self.instrument = instrument
         self.run_file_prefix = run_file_prefix
-        self.async_callback = async_callback
+        self.callback = callback
         self.archive_path = archive_path
         self.last_run_file = archive_path.joinpath(instrument).joinpath("Instrument/logs/lastrun.txt")
         self.last_recorded_run_from_file = self.get_last_run_from_file()
@@ -53,13 +51,6 @@ class LastRunDetector:
             logger.info("Adding latest run to DB as there is no data: %s", self.last_recorded_run_from_file)
             self.update_db_with_latest_run(self.last_recorded_run_from_file)
             self.latest_known_run_from_db = self.last_recorded_run_from_file
-
-    async def _init(self) -> None:
-        """
-        This function needs to be called before any other function and is the equivalent of a setup, it has to be
-        done outside __init__ because it is an Async function, and async functionality cannot be completed inside
-        __init__.
-        """
         if (
             self.latest_known_run_from_db is not None
             and self.last_recorded_run_from_file is not None
@@ -68,8 +59,7 @@ class LastRunDetector:
             logger.info(
                 "Recovering lost runs between %s and%s", self.last_recorded_run_from_file, self.latest_known_run_from_db
             )
-            if self.latest_known_run_from_db is not None and self.last_recorded_run_from_file is not None:
-                await self.recover_lost_runs(self.latest_known_run_from_db, self.last_recorded_run_from_file)
+            self.recover_lost_runs(self.latest_known_run_from_db, self.last_recorded_run_from_file)
             self.latest_known_run_from_db = self.last_recorded_run_from_file
 
     def get_latest_run_from_db(self) -> Union[str, None]:
@@ -81,7 +71,7 @@ class LastRunDetector:
         actual_instrument = self.instrument[3:]
         return self.db_updater.get_latest_run(actual_instrument)
 
-    async def watch_for_new_runs(self, run_once: bool = False) -> None:
+    def watch_for_new_runs(self, run_once: bool = False) -> None:
         """
         This is the main loop for waiting for new runs and triggering
         :param run_once: Defaults to False, and will only run the loop once, aimed at simplicity for testing.
@@ -91,7 +81,7 @@ class LastRunDetector:
         while run:
             if run_once:
                 run = False
-            await self._check_for_new_cycle_folder()
+            self._check_for_new_cycle_folder()
 
             try:
                 run_in_file = self.get_last_run_from_file()
@@ -103,18 +93,18 @@ class LastRunDetector:
                 continue
             if run_in_file != self.last_recorded_run_from_file:
                 logger.info("New run detected: %s", run_in_file)
-                await self._check_for_missed_runs(run_in_file)
+                self._check_for_missed_runs(run_in_file)
 
             sleep(0.1)
 
-    async def _check_for_missed_runs(self, run_in_file: str) -> None:
+    def _check_for_missed_runs(self, run_in_file: str) -> None:
         # If difference > 1 then try to recover potentially missed runs:
         if int(run_in_file) - int(self.last_recorded_run_from_file) > 1:
-            await self.recover_lost_runs(self.last_recorded_run_from_file, run_in_file)
+            self.recover_lost_runs(self.last_recorded_run_from_file, run_in_file)
         else:
-            await self.new_run_detected(run_in_file)
+            self.new_run_detected(run_in_file)
 
-    async def _check_for_new_cycle_folder(self) -> None:
+    def _check_for_new_cycle_folder(self) -> None:
         current_time = datetime.datetime.now()
         time_between_cycle_folder_checks = current_time - self.last_cycle_folder_check
         # If it's been 6 hours do another check for the latest folder
@@ -142,7 +132,7 @@ class LastRunDetector:
                 raise FileNotFoundError(f"This run number doesn't have a file: {run_number}") from exc
         return path
 
-    async def new_run_detected(self, run_number: str, run_path: Union[Path, None] = None) -> None:
+    def new_run_detected(self, run_number: str, run_path: Union[Path, None] = None) -> None:
         """
         Called when a new run is detected, you can use the run number OR the run path
         :param run_number: The run number that was detected or
@@ -154,7 +144,7 @@ class LastRunDetector:
             except FileNotFoundError as exception:
                 logger.exception(exception)
                 return
-        await self.async_callback(run_path)
+        self.callback(run_path)
         self.update_db_with_latest_run(run_number)
         self.last_recorded_run_from_file = run_number
 
@@ -169,7 +159,7 @@ class LastRunDetector:
                 raise RuntimeError(f"Unexpected last run file format for '{self.last_run_file}'")
         return line_parts[1]
 
-    async def recover_lost_runs(self, earlier_run: str, later_run: str) -> None:
+    def recover_lost_runs(self, earlier_run: str, later_run: str) -> None:
         """
         The aim is to send all the runs that have not been sent, in between the two passed run numbers, it will also
         submit the value for later_run
@@ -199,12 +189,12 @@ class LastRunDetector:
             try:
                 # Generate run_path which checks that path is genuine and exists
                 run_path = self.generate_run_path(actual_run_number)
-                await self.new_run_detected(actual_run_number, run_path=run_path)
+                self.new_run_detected(actual_run_number, run_path=run_path)
             except FileNotFoundError as exception:
                 try:
                     if actual_run_number_1_less_zero != actual_run_number:
                         alt_run_path = self.generate_run_path(actual_run_number_1_less_zero)
-                        await self.new_run_detected(actual_run_number_1_less_zero, run_path=alt_run_path)
+                        self.new_run_detected(actual_run_number_1_less_zero, run_path=alt_run_path)
                     else:
                         raise FileNotFoundError(
                             "Alt run path does not exist, and neither does original path, "
@@ -252,10 +242,10 @@ class LastRunDetector:
         return most_recent_cycle
 
 
-async def create_last_run_detector(
+def create_last_run_detector(
     archive_path: Path,
     instrument: str,
-    callback: Callable[[Path | None], Coroutine[Any, Any, None]],  # pylint: disable=unsupported-binary-operation
+    callback: Callable[[Path | None], None],  # pylint: disable = (unsupported-binary-operation)
     run_file_prefix: str,
     db_ip: str,
     db_username: str,
@@ -273,5 +263,4 @@ async def create_last_run_detector(
     :return:
     """
     lrd = LastRunDetector(archive_path, instrument, callback, run_file_prefix, db_ip, db_username, db_password)
-    await lrd._init()  # pylint: disable=protected-access
     return lrd

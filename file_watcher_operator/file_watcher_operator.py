@@ -23,7 +23,8 @@ def generate_deployment_body(spec, name):
     db_ip = os.environ.get("DB_IP", "localhost")
     archive_pvc_name = f"{name}-file-watcher-pvc"
     archive_pv_name = f"{name}-file-watcher-pv"
-    deployment_spec = yaml.safe_load(f"""
+    deployment_spec = yaml.safe_load(
+        f"""
             apiVersion: apps/v1
             kind: Deployment
             metadata:
@@ -88,8 +89,10 @@ def generate_deployment_body(spec, name):
                       persistentVolumeClaim:
                         claimName: {archive_pvc_name}
                         readOnly: true
-        """)
-    pvc_spec = yaml.safe_load(f"""
+        """
+    )
+    pvc_spec = yaml.safe_load(
+        f"""
             kind: PersistentVolumeClaim
             apiVersion: v1
             metadata:
@@ -102,9 +105,11 @@ def generate_deployment_body(spec, name):
                   storage: 1000Gi
               volumeName: {archive_pv_name}
               storageClassName: smb
-          """)
+          """
+    )
 
-    pv_spec = yaml.safe_load(f"""
+    pv_spec = yaml.safe_load(
+        f"""
             apiVersion: v1
             kind: PersistentVolume
             metadata:
@@ -135,7 +140,8 @@ def generate_deployment_body(spec, name):
                 nodeStageSecretRef:
                   name: archive-creds
                   namespace: ir
-          """)
+          """
+    )
 
     return deployment_spec, pvc_spec, pv_spec
 
