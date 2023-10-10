@@ -13,8 +13,6 @@ from pika.adapters.blocking_connection import BlockingChannel
 from file_watcher.lastrun_file_monitor import create_last_run_detector
 from file_watcher.utils import logger
 
-QUEUE_NAME = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
-
 
 @dataclass
 class Config:
@@ -25,8 +23,7 @@ class Config:
     host: str
     username: str
     password: str
-    station_name: str
-    producer_name: str
+    queue_name: str
     watch_dir: Path
     run_file_prefix: str
     instrument_folder: str
@@ -41,11 +38,10 @@ def load_config() -> Config:
     :return: Config
     """
     return Config(
-        os.environ.get("MEMPHIS_HOST", "localhost"),
-        os.environ.get("MEMPHIS_USER", "root"),
-        os.environ.get("MEMPHIS_PASS", "memphis"),
-        os.environ.get("MEMPHIS_STATION", "station"),
-        os.environ.get("MEMPHIS_PRODUCER_NAME", "producername"),
+        os.environ.get("QUEUE_HOST", "localhost"),
+        os.environ.get("QUEUE_USER", "guest"),
+        os.environ.get("QUEUE_PASSWORD", "guest"),
+        os.environ.get("EGRESS_QUEUE_NAME", "watched-files"),
         Path(os.environ.get("WATCH_DIR", "/archive")),
         os.environ.get("FILE_PREFIX", "MAR"),
         os.environ.get("INSTRUMENT_FOLDER", "NDXMARI"),
@@ -65,15 +61,14 @@ class FileWatcher:
         self.config = config
         self.channel = self.get_channel()
 
-    @staticmethod
-    def get_channel() -> BlockingChannel:
+    def get_channel(self) -> BlockingChannel:
         """Get a BlockingChannel"""
-        connection_parameters = ConnectionParameters(os.environ.get("QUEUE_HOST", "localhost"), 5672)
+        connection_parameters = ConnectionParameters(self.config.host, 5672)
         connection = BlockingConnection(connection_parameters)
         channel = connection.channel()
-        channel.exchange_declare(QUEUE_NAME, exchange_type="direct", durable=True)
-        channel.queue_declare(QUEUE_NAME)
-        channel.queue_bind(QUEUE_NAME, QUEUE_NAME, routing_key="")
+        channel.exchange_declare(self.config.queue_name, exchange_type="direct", durable=True)
+        channel.queue_declare(self.config.queue_name)
+        channel.queue_bind(self.config.queue_name, self.config.queue_name, routing_key="")
         return channel
 
     def on_event(self, path: Path) -> None:
@@ -87,7 +82,7 @@ class FileWatcher:
             logger.info("Skipping directory creation for %s", str_path)
         if self.channel.is_closed:
             self.channel = self.get_channel()
-        self.channel.basic_publish(QUEUE_NAME, "", str(path).encode())
+        self.channel.basic_publish(self.config.queue_name, "", str(path).encode())
 
     def start_watching(self) -> None:
         """

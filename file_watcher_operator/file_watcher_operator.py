@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 def generate_deployment_body(spec, name):
     archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
-    memphis_host = os.environ.get("MEMPHIS_HOST", "memphis.memphis.svc.cluster.local")
-    memphis_station = os.environ.get("MEMPHIS_STATION", "watched-files")
+    memphis_host = os.environ.get("QUEUE_HOST", "memphis.memphis.svc.cluster.local")
+    memphis_station = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
     file_watcher_sha = os.environ.get("FILE_WATCHER_SHA256", "")
     db_ip = os.environ.get("DB_IP", "localhost")
     archive_pvc_name = f"{name}-file-watcher-pvc"
