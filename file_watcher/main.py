@@ -68,7 +68,7 @@ class FileWatcher:
         connection = BlockingConnection(connection_parameters)
         channel = connection.channel()
         channel.exchange_declare(self.config.queue_name, exchange_type="direct", durable=True)
-        channel.queue_declare(self.config.queue_name)
+        channel.queue_declare(self.config.queue_name, durable=True, arguments={"x-queue-type": "quorum"})
         channel.queue_bind(self.config.queue_name, self.config.queue_name, routing_key="")
         return channel
 
