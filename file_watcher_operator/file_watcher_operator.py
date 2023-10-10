@@ -23,8 +23,7 @@ def generate_deployment_body(spec, name):
     db_ip = os.environ.get("DB_IP", "localhost")
     archive_pvc_name = f"{name}-file-watcher-pvc"
     archive_pv_name = f"{name}-file-watcher-pv"
-    deployment_spec = yaml.safe_load(
-        f"""
+    deployment_spec = yaml.safe_load(f"""
             apiVersion: apps/v1
             kind: Deployment
             metadata:
@@ -89,10 +88,8 @@ def generate_deployment_body(spec, name):
                       persistentVolumeClaim:
                         claimName: {archive_pvc_name}
                         readOnly: true
-        """
-    )
-    pvc_spec = yaml.safe_load(
-        f"""
+        """)
+    pvc_spec = yaml.safe_load(f"""
             kind: PersistentVolumeClaim
             apiVersion: v1
             metadata:
@@ -105,11 +102,9 @@ def generate_deployment_body(spec, name):
                   storage: 1000Gi
               volumeName: {archive_pv_name}
               storageClassName: smb
-          """
-    )
+          """)
 
-    pv_spec = yaml.safe_load(
-        f"""
+    pv_spec = yaml.safe_load(f"""
             apiVersion: v1
             kind: PersistentVolume
             metadata:
@@ -140,8 +135,7 @@ def generate_deployment_body(spec, name):
                 nodeStageSecretRef:
                   name: archive-creds
                   namespace: ir
-          """
-    )
+          """)
 
     return deployment_spec, pvc_spec, pv_spec
 
@@ -157,10 +151,10 @@ def deploy_deployment(deployment_spec, name, children):
 def deploy_pvc(pvc_spec, name, children):
     core_api = kubernetes.client.CoreV1Api()
     # Check if PVC exists else deploy a new one:
-    if (
-        pvc_spec["metadata"]["name"]
-        not in core_api.list_namespaced_persistent_volume_claim(pvc_spec["metadata"]["namespace"]).items
-    ):
+    if pvc_spec["metadata"]["name"] not in [
+        ii.metadata.name
+        for ii in core_api.list_namespaced_persistent_volume_claim(pvc_spec["metadata"]["namespace"]).items
+    ]:
         logger.info(f"Starting deployment of PVC: {name} filewatcher")
         pvc = core_api.create_namespaced_persistent_volume_claim(namespace="ir-file-watcher", body=pvc_spec)
         children.append(pvc.metadata.uid)
@@ -170,7 +164,7 @@ def deploy_pvc(pvc_spec, name, children):
 def deploy_pv(pv_spec, name, children):
     core_api = kubernetes.client.CoreV1Api()
     # Check if PV exists else deploy a new one
-    if pv_spec["metadata"]["name"] not in core_api.list_persistent_volume().items:
+    if pv_spec["metadata"]["name"] not in [ii.metadata.name for ii in core_api.list_persistent_volume().items]:
         logger.info(f"Starting deployment of PV: {name} filewatcher")
         pv = core_api.create_persistent_volume(body=pv_spec)
         children.append(pv.metadata.uid)
