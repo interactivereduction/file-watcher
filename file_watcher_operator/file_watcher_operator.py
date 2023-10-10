@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 def generate_deployment_body(spec, name):
     archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
-    memphis_host = os.environ.get("QUEUE_HOST", "memphis.memphis.svc.cluster.local")
-    memphis_station = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
+    queue_host = os.environ.get("QUEUE_HOST", "memphis.memphis.svc.cluster.local")
+    queue_name = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
     file_watcher_sha = os.environ.get("FILE_WATCHER_SHA256", "")
     db_ip = os.environ.get("DB_IP", "localhost")
     archive_pvc_name = f"{name}-file-watcher-pvc"
@@ -44,12 +44,10 @@ def generate_deployment_body(spec, name):
                   - name: {name}-file-watcher
                     image: ghcr.io/interactivereduction/filewatcher@sha256:{file_watcher_sha}
                     env:
-                    - name: MEMPHIS_HOST
-                      value: {memphis_host}
-                    - name: MEMPHIS_STATION
-                      value: {memphis_station}
-                    - name: MEMPHIS_PRODUCER_NAME
-                      value: {name}-filewatcher
+                    - name: QUEUE_HOST
+                      value: {queue_host}
+                    - name: EGRESS_QUEUE_NAME
+                      value: {queue_name}
                     - name: WATCH_DIR
                       value: {archive_dir}
                     - name: FILE_PREFIX
@@ -60,12 +58,12 @@ def generate_deployment_body(spec, name):
                       value: {db_ip}
 
                     # Secrets
-                    - name: MEMPHIS_USER
+                    - name: QUEUE_USER
                       valueFrom: 
                         secretKeyRef:
                           name: filewatcher-secrets
                           key: memphis_user
-                    - name: MEMPHIS_PASS
+                    - name: QUEUE_PASSWORD
                       valueFrom: 
                         secretKeyRef:
                           name: filewatcher-secrets
