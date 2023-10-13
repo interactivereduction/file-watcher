@@ -3,12 +3,13 @@
 Main module
 """
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Union, Generator, Any
 
-from pika import ConnectionParameters, BlockingConnection, PlainCredentials
-from pika.adapters.blocking_connection import BlockingChannel
+from pika import ConnectionParameters, BlockingConnection, PlainCredentials  # type: ignore
+from pika.adapters.blocking_connection import BlockingChannel  # type: ignore
 
 from file_watcher.lastrun_file_monitor import create_last_run_detector
 from file_watcher.utils import logger
@@ -59,9 +60,8 @@ class FileWatcher:
 
     def __init__(self, config: Config):
         self.config = config
-        self.channel = self.get_channel()
 
-    def get_channel(self) -> BlockingChannel:
+    def _get_channel(self) -> BlockingChannel:
         """Get a BlockingChannel"""
         credentials = PlainCredentials(username=self.config.username, password=self.config.password)
         connection_parameters = ConnectionParameters(self.config.host, 5672, credentials=credentials)
@@ -72,6 +72,17 @@ class FileWatcher:
         channel.queue_bind(self.config.queue_name, self.config.queue_name, routing_key="")
         return channel
 
+    @contextmanager
+    def producer_channel(self) -> Generator[BlockingChannel, Any, None]:
+        """
+        Returns a context managed blocking channel
+        :return: BlockingChannel
+        """
+        channel = self._get_channel()
+        yield channel
+        channel.close()
+        channel.connection.close()
+
     def on_event(self, path: Path) -> None:
         """
         Given a path publish to rabbitmq if not a directory
@@ -81,9 +92,9 @@ class FileWatcher:
         str_path = str(path)
         if path.is_dir():
             logger.info("Skipping directory creation for %s", str_path)
-        if self.channel.is_closed:
-            self.channel = self.get_channel()
-        self.channel.basic_publish(self.config.queue_name, "", str(path).encode())
+            return
+        with self.producer_channel() as channel:
+            channel.basic_publish(self.config.queue_name, "", str(path).encode())
 
     def start_watching(self) -> None:
         """
@@ -112,19 +123,11 @@ class FileWatcher:
             logger.exception(exception)
 
 
-def start() -> None:
-    """
-    Create the file watcher and start watching for changes
-    :return: None
-    """
+def main() -> None:
+    """Main function Create the file watcher and start watching for changes"""
     config = load_config()
     file_watcher = FileWatcher(config)
     file_watcher.start_watching()
-
-
-def main() -> None:
-    """Main function"""
-    start()
 
 
 if __name__ == "__main__":
