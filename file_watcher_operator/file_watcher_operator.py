@@ -17,13 +17,14 @@ logger = logging.getLogger(__name__)
 
 def generate_deployment_body(spec, name):
     archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
-    memphis_host = os.environ.get("MEMPHIS_HOST", "memphis.memphis.svc.cluster.local")
-    memphis_station = os.environ.get("MEMPHIS_STATION", "watched-files")
+    queue_host = os.environ.get("QUEUE_HOST", "rabbitmq-cluster.rabbitmq.svc.cluster.local")
+    queue_name = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
     file_watcher_sha = os.environ.get("FILE_WATCHER_SHA256", "")
     db_ip = os.environ.get("DB_IP", "localhost")
     archive_pvc_name = f"{name}-file-watcher-pvc"
     archive_pv_name = f"{name}-file-watcher-pv"
-    deployment_spec = yaml.safe_load(f"""
+    deployment_spec = yaml.safe_load(
+        f"""
             apiVersion: apps/v1
             kind: Deployment
             metadata:
@@ -44,12 +45,10 @@ def generate_deployment_body(spec, name):
                   - name: {name}-file-watcher
                     image: ghcr.io/interactivereduction/filewatcher@sha256:{file_watcher_sha}
                     env:
-                    - name: MEMPHIS_HOST
-                      value: {memphis_host}
-                    - name: MEMPHIS_STATION
-                      value: {memphis_station}
-                    - name: MEMPHIS_PRODUCER_NAME
-                      value: {name}-filewatcher
+                    - name: QUEUE_HOST
+                      value: {queue_host}
+                    - name: EGRESS_QUEUE_NAME
+                      value: {queue_name}
                     - name: WATCH_DIR
                       value: {archive_dir}
                     - name: FILE_PREFIX
@@ -60,16 +59,16 @@ def generate_deployment_body(spec, name):
                       value: {db_ip}
 
                     # Secrets
-                    - name: MEMPHIS_USER
+                    - name: QUEUE_USER
                       valueFrom: 
                         secretKeyRef:
                           name: filewatcher-secrets
-                          key: memphis_user
-                    - name: MEMPHIS_PASS
+                          key: queue_user
+                    - name: QUEUE_PASSWORD
                       valueFrom: 
                         secretKeyRef:
                           name: filewatcher-secrets
-                          key: memphis_password
+                          key: queue_password
                     - name: DB_USERNAME
                       valueFrom:
                         secretKeyRef:
@@ -88,8 +87,10 @@ def generate_deployment_body(spec, name):
                       persistentVolumeClaim:
                         claimName: {archive_pvc_name}
                         readOnly: true
-        """)
-    pvc_spec = yaml.safe_load(f"""
+        """
+    )
+    pvc_spec = yaml.safe_load(
+        f"""
             kind: PersistentVolumeClaim
             apiVersion: v1
             metadata:
@@ -102,9 +103,11 @@ def generate_deployment_body(spec, name):
                   storage: 1000Gi
               volumeName: {archive_pv_name}
               storageClassName: smb
-          """)
+          """
+    )
 
-    pv_spec = yaml.safe_load(f"""
+    pv_spec = yaml.safe_load(
+        f"""
             apiVersion: v1
             kind: PersistentVolume
             metadata:
@@ -135,7 +138,8 @@ def generate_deployment_body(spec, name):
                 nodeStageSecretRef:
                   name: archive-creds
                   namespace: ir
-          """)
+          """
+    )
 
     return deployment_spec, pvc_spec, pv_spec
 
@@ -151,10 +155,10 @@ def deploy_deployment(deployment_spec, name, children):
 def deploy_pvc(pvc_spec, name, children):
     core_api = kubernetes.client.CoreV1Api()
     # Check if PVC exists else deploy a new one:
-    if (
-        pvc_spec["metadata"]["name"]
-        not in core_api.list_namespaced_persistent_volume_claim(pvc_spec["metadata"]["namespace"]).items
-    ):
+    if pvc_spec["metadata"]["name"] not in [
+        ii.metadata.name
+        for ii in core_api.list_namespaced_persistent_volume_claim(pvc_spec["metadata"]["namespace"]).items
+    ]:
         logger.info(f"Starting deployment of PVC: {name} filewatcher")
         pvc = core_api.create_namespaced_persistent_volume_claim(namespace="ir-file-watcher", body=pvc_spec)
         children.append(pvc.metadata.uid)
@@ -164,7 +168,7 @@ def deploy_pvc(pvc_spec, name, children):
 def deploy_pv(pv_spec, name, children):
     core_api = kubernetes.client.CoreV1Api()
     # Check if PV exists else deploy a new one
-    if pv_spec["metadata"]["name"] not in core_api.list_persistent_volume().items:
+    if pv_spec["metadata"]["name"] not in [ii.metadata.name for ii in core_api.list_persistent_volume().items]:
         logger.info(f"Starting deployment of PV: {name} filewatcher")
         pv = core_api.create_persistent_volume(body=pv_spec)
         children.append(pv.metadata.uid)

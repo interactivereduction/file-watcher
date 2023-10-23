@@ -2,14 +2,14 @@
 """
 Main module
 """
-import asyncio
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Union, Generator, Any
 
-from memphis import Memphis, MemphisError  # type: ignore
-from memphis.producer import Producer  # type: ignore
+from pika import ConnectionParameters, BlockingConnection, PlainCredentials  # type: ignore
+from pika.adapters.blocking_connection import BlockingChannel  # type: ignore
 
 from file_watcher.lastrun_file_monitor import create_last_run_detector
 from file_watcher.utils import logger
@@ -24,8 +24,7 @@ class Config:
     host: str
     username: str
     password: str
-    station_name: str
-    producer_name: str
+    queue_name: str
     watch_dir: Path
     run_file_prefix: str
     instrument_folder: str
@@ -40,11 +39,10 @@ def load_config() -> Config:
     :return: Config
     """
     return Config(
-        os.environ.get("MEMPHIS_HOST", "localhost"),
-        os.environ.get("MEMPHIS_USER", "root"),
-        os.environ.get("MEMPHIS_PASS", "memphis"),
-        os.environ.get("MEMPHIS_STATION", "station"),
-        os.environ.get("MEMPHIS_PRODUCER_NAME", "producername"),
+        os.environ.get("QUEUE_HOST", "localhost"),
+        os.environ.get("QUEUE_USER", "guest"),
+        os.environ.get("QUEUE_PASSWORD", "guest"),
+        os.environ.get("EGRESS_QUEUE_NAME", "watched-files"),
         Path(os.environ.get("WATCH_DIR", "/archive")),
         os.environ.get("FILE_PREFIX", "MAR"),
         os.environ.get("INSTRUMENT_FOLDER", "NDXMARI"),
@@ -62,68 +60,53 @@ class FileWatcher:
 
     def __init__(self, config: Config):
         self.config = config
-        self.memphis = Memphis()
 
-    async def _init(self) -> None:
-        """
-        This function needs to be called before any other function and is the equivalent of a setup, it has to be
-        done outside __init__ because it is an Async function, and async functionality cannot be completed inside
-        __init__.
-        """
-        await self.connect_to_broker()
-        self.producer = await self.setup_producer()  # pylint: disable=attribute-defined-outside-init
+    def _get_channel(self) -> BlockingChannel:
+        """Get a BlockingChannel"""
+        credentials = PlainCredentials(username=self.config.username, password=self.config.password)
+        connection_parameters = ConnectionParameters(self.config.host, 5672, credentials=credentials)
+        connection = BlockingConnection(connection_parameters)
+        channel = connection.channel()
+        channel.exchange_declare(self.config.queue_name, exchange_type="direct", durable=True)
+        channel.queue_declare(self.config.queue_name, durable=True, arguments={"x-queue-type": "quorum"})
+        channel.queue_bind(self.config.queue_name, self.config.queue_name, routing_key="")
+        return channel
 
-    async def connect_to_broker(self) -> None:
+    @contextmanager
+    def producer_channel(self) -> Generator[BlockingChannel, Any, None]:
         """
-        A function to connect to the memphis broker can be called multiple times in a row without issue
+        Returns a context managed blocking channel
+        :return: BlockingChannel
         """
-        logger.info("Connecting to memphis at host: %s", self.config.host)
-        await self.memphis.connect(
-            host=self.config.host, username=self.config.username, password=self.config.password, timeout_ms=30000
-        )
-        logger.info("Connected to memphis")
+        channel = self._get_channel()
+        yield channel
+        channel.close()
+        channel.connection.close()
 
-    async def setup_producer(self) -> Producer:
+    def on_event(self, path: Path) -> None:
         """
-        Asynchronously setup and return a memphis producer
-        :return: The memphis producer
-        """
-        logger.info("Creating producer: %s at station: %s", self.config.producer_name, self.config.station_name)
-        return await self.memphis.producer(
-            station_name=self.config.station_name, producer_name=self.config.producer_name, generate_random_suffix=True
-        )
-
-    async def on_event(self, path: Path) -> None:
-        """
-        The function to be called when you have a new file detected, it will talk to memphis and produce a new message
-        :param path: The path that should be the contents of the Memphis message
+        Given a path publish to rabbitmq if not a directory
+        :param path: The path to publish
+        :return: None
         """
         str_path = str(path)
         if path.is_dir():
-            logger.info("Skipping directory creation for: %s", str_path)
-        else:
-            if not self.memphis.is_connected():
-                logger.info("Memphis is not connected...")
-                await self.connect_to_broker()
-            logger.info("Producing message: %s", str_path)
-            try:
-                await self.producer.produce(bytearray(str_path, "utf-8"))
-            except MemphisError:
-                # Assume an error connecting to memphis, connect again and resubmit
-                await self.connect_to_broker()
-                await self.producer.produce(bytearray(str_path, "utf-8"))
+            logger.info("Skipping directory creation for %s", str_path)
+            return
+        with self.producer_channel() as channel:
+            channel.basic_publish(self.config.queue_name, "", str(path).encode())
 
-    async def start_watching(self) -> None:
+    def start_watching(self) -> None:
         """
         Start the PollingObserver with the queue based event handler and the given queue
         :return: None
         """
 
-        async def _event_occurred(path_to_add: Union[Path, None]) -> None:
+        def _event_occurred(path_to_add: Union[Path, None]) -> None:
             if path_to_add is not None:
-                await self.on_event(path_to_add)
+                self.on_event(path_to_add)
 
-        last_run_detector = await create_last_run_detector(
+        last_run_detector = create_last_run_detector(
             self.config.watch_dir,
             self.config.instrument_folder,
             _event_occurred,
@@ -134,26 +117,17 @@ class FileWatcher:
         )
 
         try:
-            await last_run_detector.watch_for_new_runs()
+            last_run_detector.watch_for_new_runs()
         except Exception as exception:  # pylint: disable=broad-exception-caught
             logger.info("File observer fell over watching because of the following exception:")
             logger.exception(exception)
 
 
-async def start() -> None:
-    """
-    Create the file watcher and start watching for changes
-    :return: None
-    """
+def main() -> None:
+    """Main function Create the file watcher and start watching for changes"""
     config = load_config()
     file_watcher = FileWatcher(config)
-    await file_watcher._init()  # pylint: disable=protected-access
-    await file_watcher.start_watching()
-
-
-def main() -> None:
-    """Main function"""
-    asyncio.run(start())
+    file_watcher.start_watching()
 
 
 if __name__ == "__main__":
