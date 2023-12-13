@@ -147,12 +147,14 @@ def generate_deployment_body(spec, name):
 def deploy_deployment(deployment_spec, name, children):
     app_api = kubernetes.client.AppsV1Api()
     logger.info(f"Starting deployment of: {name} filewatcher")
-    depl = app_api.create_namespaced_deployment(namespace="ir-file-watcher", body=deployment_spec)
+    namespace = os.environ.get("FILEWATCHER_NAMESPACE", "ir")
+    depl = app_api.create_namespaced_deployment(namespace=namespace, body=deployment_spec)
     children.append(depl.metadata.uid)
     logger.info(f"Deployed: {name} filewatcher")
 
 
 def deploy_pvc(pvc_spec, name, children):
+    namespace = os.environ.get("FILEWATCHER_NAMESPACE", "ir")
     core_api = kubernetes.client.CoreV1Api()
     # Check if PVC exists else deploy a new one:
     if pvc_spec["metadata"]["name"] not in [
@@ -160,7 +162,7 @@ def deploy_pvc(pvc_spec, name, children):
         for ii in core_api.list_namespaced_persistent_volume_claim(pvc_spec["metadata"]["namespace"]).items
     ]:
         logger.info(f"Starting deployment of PVC: {name} filewatcher")
-        pvc = core_api.create_namespaced_persistent_volume_claim(namespace="ir-file-watcher", body=pvc_spec)
+        pvc = core_api.create_namespaced_persistent_volume_claim(namespace=namespace, body=pvc_spec)
         children.append(pvc.metadata.uid)
         logger.info(f"Deployed PVC: {name} filewatcher")
 
