@@ -125,10 +125,7 @@ def generate_deployment_body(spec, name):
                 - noserverino
                 - _netdev
                 - vers=2.1
-                - uid=1001
-                - gid=1001
-                - dir_mode=0555
-                - file_mode=0444
+                - nodfs
               csi:
                 driver: smb.csi.k8s.io
                 readOnly: true
