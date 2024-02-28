@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.12-slim
 
 RUN pip install kopf
 RUN pip install kubernetes
