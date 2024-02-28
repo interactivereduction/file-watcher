@@ -1,9 +1,13 @@
+"""
+Filewatcher operator controls the deployments, PVs, and PVCs based on instrument CRDs
+"""
 import logging
 import os
 import sys
+from typing import Dict, Any, Mapping, Tuple, List, MutableMapping
 
-import kopf as kopf
-import kubernetes
+import kopf
+import kubernetes  # type: ignore
 import yaml
 
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
@@ -15,7 +19,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def generate_deployment_body(spec, name):
+def generate_deployment_body(
+    spec: Mapping[str, Any], name: str
+) -> Tuple[MutableMapping[str, Any], MutableMapping[str, Any], MutableMapping[str, Any]]:
+    """
+
+    :param spec:
+    :param name:
+    :return:
+    """
     archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
     queue_host = os.environ.get("QUEUE_HOST", "rabbitmq-cluster.rabbitmq.svc.cluster.local")
     queue_name = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
@@ -144,7 +156,7 @@ def generate_deployment_body(spec, name):
     return deployment_spec, pvc_spec, pv_spec
 
 
-def deploy_deployment(deployment_spec, name, children):
+def deploy_deployment(deployment_spec: Mapping[str, Any], name: str, children: List[Any]) -> None:
     app_api = kubernetes.client.AppsV1Api()
     logger.info(f"Starting deployment of: {name} filewatcher")
     namespace = os.environ.get("FILEWATCHER_NAMESPACE", "ir")
@@ -153,7 +165,7 @@ def deploy_deployment(deployment_spec, name, children):
     logger.info(f"Deployed: {name} filewatcher")
 
 
-def deploy_pvc(pvc_spec, name, children):
+def deploy_pvc(pvc_spec: Mapping[str, Any], name: str, children: List[Any]) -> None:
     namespace = os.environ.get("FILEWATCHER_NAMESPACE", "ir")
     core_api = kubernetes.client.CoreV1Api()
     # Check if PVC exists else deploy a new one:
@@ -167,7 +179,7 @@ def deploy_pvc(pvc_spec, name, children):
         logger.info(f"Deployed PVC: {name} filewatcher")
 
 
-def deploy_pv(pv_spec, name, children):
+def deploy_pv(pv_spec: Mapping[str, Any], name: str, children: List[Any]) -> None:
     core_api = kubernetes.client.CoreV1Api()
     # Check if PV exists else deploy a new one
     if pv_spec["metadata"]["name"] not in [ii.metadata.name for ii in core_api.list_persistent_volume().items]:
@@ -178,7 +190,7 @@ def deploy_pv(pv_spec, name, children):
 
 
 @kopf.on.create("ir.com", "v1", "filewatchers")
-def create_fn(spec, **kwargs):
+def create_fn(spec: Any, **kwargs: Any) -> Dict[str, List[Any]]:
     name = kwargs["body"]["metadata"]["name"]
     logger.info(f"Name is {name}")
 
@@ -187,9 +199,16 @@ def create_fn(spec, **kwargs):
     kopf.adopt(deployment_spec)
     kopf.adopt(pvc_spec)
 
-    children = []
+    children: List[Any] = []
     deploy_pv(pv_spec, name, children)
     deploy_pvc(pvc_spec, name, children)
     deploy_deployment(deployment_spec, name, children)
     # Update controller's status with child deployment
     return {"children": children}
+
+
+@kopf.on.delete("ir.com", "v1", "filewatchers")
+def delete_func(**kwargs: Any) -> None:
+    name = kwargs["body"]["metadata"]["name"]
+    client = kubernetes.client.CoreV1Api()
+    client.delete_persistent_volume(name=f"{name}-file-watcher-pv")

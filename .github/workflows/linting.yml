@@ -25,4 +25,4 @@ jobs:
         run: pylint file_watcher
 
       - name: Run MyPy
-        run: mypy --strict file_watcher
+        run: mypy --strict file_watcher file_watcher_operator
