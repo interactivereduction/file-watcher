@@ -10,6 +10,8 @@ import kopf
 import kubernetes  # type: ignore
 import yaml
 
+# pylint: disable = (duplicate-code)
+# This will be detected from the file watcher which is not the same application.
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
     handlers=[stdout_handler],
@@ -17,6 +19,7 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+# pylint: enable = duplicate-code
 
 
 def generate_deployment_body(
