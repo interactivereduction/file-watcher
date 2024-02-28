@@ -15,6 +15,12 @@ dependencies = [
 file_watcher = "file_watcher.main:main"
 
 [project.optional-dependencies]
+operator = [
+    "kopf==1.37.1",
+    "kubernetes==29.0.0",
+    "PyYAML==6.0.1"
+]
+
 formatting = [
     "black==23.10.1"
 ]
@@ -29,7 +35,8 @@ code-inspection = [
     "pylint==3.0.2",
     "mypy==1.6.0",
     "types-PyYAML==6.0.12.12",
-    "file_watcher[test]"
+    "file_watcher[test]",
+    "file_watcher[operator]"
 ]
 
 dev = [
