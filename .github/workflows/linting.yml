@@ -22,7 +22,7 @@ jobs:
           python -m pip install .[code-inspection]
 
       - name: Run pylint
-        run: pylint file_watcher
+        run: pylint file_watcher file_watcher_operator
 
       - name: Run MyPy
         run: mypy --strict file_watcher file_watcher_operator
