@@ -58,7 +58,7 @@ def generate_deployment_body(
                 spec:
                   containers:
                   - name: {name}-file-watcher
-                    image: ghcr.io/interactivereduction/filewatcher@sha256:{file_watcher_sha}
+                    image: file-watcher:local
                     env:
                     - name: QUEUE_HOST
                       value: {queue_host}
@@ -252,3 +252,22 @@ def delete_func(**kwargs: Any) -> None:
     name = kwargs["body"]["metadata"]["name"]
     client = kubernetes.client.CoreV1Api()
     client.delete_persistent_volume(name=f"{name}-file-watcher-pv")
+
+
+@kopf.on.update("ir.com", "v1", "filewatchers")
+def update_func(spec: Any, **kwargs: Any) -> None:
+    """
+    kopf update event handler. This automatically updates the filewatcher deployment when the CRD changes
+    :param spec: the spec
+    :param kwargs: kwargs
+    :return: None
+    """
+    name = kwargs["body"]["metadata"]["name"]
+
+    namespace = kwargs["body"]["metadata"]["namespace"]
+    deployment_spec, _, __ = generate_deployment_body(spec, name)
+    app_api = kubernetes.client.AppsV1Api()
+
+    app_api.patch_namespaced_deployment(
+        name=f"{name}-file-watcher-deployment", namespace=namespace, body=deployment_spec
+    )
