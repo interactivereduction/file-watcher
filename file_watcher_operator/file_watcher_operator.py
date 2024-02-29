@@ -58,7 +58,7 @@ def generate_deployment_body(
                 spec:
                   containers:
                   - name: {name}-file-watcher
-                    image: file-watcher:local
+                    image: ghcr.io/interactivereduction/filewatcher@sha256:{file_watcher_sha}
                     env:
                     - name: QUEUE_HOST
                       value: {queue_host}
