@@ -1,11 +1,17 @@
+"""
+Filewatcher operator controls the deployments, PVs, and PVCs based on instrument CRDs
+"""
 import logging
 import os
 import sys
+from typing import Dict, Any, Mapping, Tuple, List, MutableMapping
 
-import kopf as kopf
-import kubernetes
+import kopf
+import kubernetes  # type: ignore
 import yaml
 
+# pylint: disable = (duplicate-code)
+# This will be detected from the file watcher which is not the same application.
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
 logging.basicConfig(
     handlers=[stdout_handler],
@@ -13,9 +19,18 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+# pylint: enable = duplicate-code
 
 
-def generate_deployment_body(spec, name):
+def generate_deployment_body(
+    spec: Mapping[str, Any], name: str
+) -> Tuple[MutableMapping[str, Any], MutableMapping[str, Any], MutableMapping[str, Any]]:
+    """
+    Create and return a Kubernetes deployment yaml for each deployment
+    :param spec: The kopf spec
+    :param name: The instrument name
+    :return: Tuple of the mutable mappings containing the deployment specs
+    """
     archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
     queue_host = os.environ.get("QUEUE_HOST", "rabbitmq-cluster.rabbitmq.svc.cluster.local")
     queue_name = os.environ.get("EGRESS_QUEUE_NAME", "watched-files")
@@ -144,16 +159,32 @@ def generate_deployment_body(spec, name):
     return deployment_spec, pvc_spec, pv_spec
 
 
-def deploy_deployment(deployment_spec, name, children):
+def deploy_deployment(deployment_spec: Mapping[str, Any], name: str, children: List[Any]) -> None:
+    """
+    Given a deployment spec, name, and operators children, create the namespaced deployment and add it's uid to the
+    children
+    :param deployment_spec: The deployment spec
+    :param name: The name of the spec
+    :param children: The operators children
+    :return: None
+    """
     app_api = kubernetes.client.AppsV1Api()
-    logger.info(f"Starting deployment of: {name} filewatcher")
+    logger.info("Starting deployment of: %s filewatcher", name)
     namespace = os.environ.get("FILEWATCHER_NAMESPACE", "ir")
     depl = app_api.create_namespaced_deployment(namespace=namespace, body=deployment_spec)
     children.append(depl.metadata.uid)
-    logger.info(f"Deployed: {name} filewatcher")
+    logger.info("Deployed: %s filewatcher", name)
 
 
-def deploy_pvc(pvc_spec, name, children):
+def deploy_pvc(pvc_spec: Mapping[str, Any], name: str, children: List[Any]) -> None:
+    """
+    Given a pvc spec, name, and the operators children, create the namespaced persistent volume claim and add its uid
+    to the operators children
+    :param pvc_spec: The pvc spec
+    :param name: The name of the pvc
+    :param children: The operators children
+    :return: None
+    """
     namespace = os.environ.get("FILEWATCHER_NAMESPACE", "ir")
     core_api = kubernetes.client.CoreV1Api()
     # Check if PVC exists else deploy a new one:
@@ -161,35 +192,82 @@ def deploy_pvc(pvc_spec, name, children):
         ii.metadata.name
         for ii in core_api.list_namespaced_persistent_volume_claim(pvc_spec["metadata"]["namespace"]).items
     ]:
-        logger.info(f"Starting deployment of PVC: {name} filewatcher")
+        logger.info("Starting deployment of PVC: %s filewatcher", name)
         pvc = core_api.create_namespaced_persistent_volume_claim(namespace=namespace, body=pvc_spec)
         children.append(pvc.metadata.uid)
-        logger.info(f"Deployed PVC: {name} filewatcher")
+        logger.info("Deployed PVC: %s filewatcher", name)
 
 
-def deploy_pv(pv_spec, name, children):
+def deploy_pv(pv_spec: Mapping[str, Any], name: str, children: List[Any]) -> None:
+    """
+    Given a pvc spec, name, and the operators children, create the namespaced persistent volume and add its uid
+    to the operators children
+    :param pv_spec: The pv spec
+    :param name: The name of the pv
+    :param children: The operators children
+    :return: None
+    """
     core_api = kubernetes.client.CoreV1Api()
     # Check if PV exists else deploy a new one
     if pv_spec["metadata"]["name"] not in [ii.metadata.name for ii in core_api.list_persistent_volume().items]:
-        logger.info(f"Starting deployment of PV: {name} filewatcher")
+        logger.info("Starting deployment of PV: %s filewatcher", name)
         pv = core_api.create_persistent_volume(body=pv_spec)
         children.append(pv.metadata.uid)
-        logger.info(f"Deployed PV: {name} filewatcher")
+        logger.info("Deployed PV: %s filewatcher", name)
 
 
 @kopf.on.create("ir.com", "v1", "filewatchers")
-def create_fn(spec, **kwargs):
+def create_fn(spec: Any, **kwargs: Any) -> Dict[str, List[Any]]:
+    """
+    Kopf create event handler, generates all 3 specs then creates them in the cluster, while creating the children and
+    adopting the deployment and pvc
+    :param spec: Spec of the CRD intercepted by kopf
+    :param kwargs: KWARGS
+    :return: None
+    """
     name = kwargs["body"]["metadata"]["name"]
-    logger.info(f"Name is {name}")
+    logger.info("Name is %s", name)
 
     deployment_spec, pvc_spec, pv_spec = generate_deployment_body(spec, name)
     # Make the deployment the child of this operator
     kopf.adopt(deployment_spec)
     kopf.adopt(pvc_spec)
 
-    children = []
+    children: List[Any] = []
     deploy_pv(pv_spec, name, children)
     deploy_pvc(pvc_spec, name, children)
     deploy_deployment(deployment_spec, name, children)
     # Update controller's status with child deployment
     return {"children": children}
+
+
+@kopf.on.delete("ir.com", "v1", "filewatchers")
+def delete_func(**kwargs: Any) -> None:
+    """
+    Kopf delete event handler. This will automatically delete the filewatcher deployment and pvc, and will manually
+    delete the persitent volume
+    :param kwargs: kwargs
+    :return: None
+    """
+    name = kwargs["body"]["metadata"]["name"]
+    client = kubernetes.client.CoreV1Api()
+    client.delete_persistent_volume(name=f"{name}-file-watcher-pv")
+
+
+@kopf.on.update("ir.com", "v1", "filewatchers")
+def update_func(spec: Any, **kwargs: Any) -> None:
+    """
+    kopf update event handler. This automatically updates the filewatcher deployment when the CRD changes
+    :param spec: the spec
+    :param kwargs: kwargs
+    :return: None
+    """
+    name = kwargs["body"]["metadata"]["name"]
+
+    namespace = kwargs["body"]["metadata"]["namespace"]
+    deployment_spec, _, __ = generate_deployment_body(spec, name)
+    app_api = kubernetes.client.AppsV1Api()
+
+    app_api.patch_namespaced_deployment(
+        name=f"{name}-file-watcher-deployment", namespace=namespace, body=deployment_spec
+    )

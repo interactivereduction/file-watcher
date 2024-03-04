@@ -12,7 +12,10 @@ There is a recovery attempt that can be made for the instrument, by checking if 
 instrument by using some saved state in the Database.
 
 ## FileWatcherOperator
-The point of the operator is to check for CustomResourceDefinition files that have been applied to the cluster. Examples can be found in the GitOps repository of what these should look like as part of the deployment for the file-watcher-operator. When a CRD is applied, this software should create a Deployment responsible for ensuring a file-watcher exists for the parameters in the CRD file.
+The point of the operator is to check for CustomResourceDefinition files that have been applied to the cluster. 
+Examples can be found in the GitOps repository of what these should look like as part of the deployment for the
+file-watcher-operator. When a CRD is applied, this software should create a Deployment responsible for ensuring a 
+file-watcher exists for the parameters in the CRD file.
 
 ## Docker
 
