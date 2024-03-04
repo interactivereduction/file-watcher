@@ -26,10 +26,10 @@ def generate_deployment_body(
     spec: Mapping[str, Any], name: str
 ) -> Tuple[MutableMapping[str, Any], MutableMapping[str, Any], MutableMapping[str, Any]]:
     """
-
-    :param spec:
-    :param name:
-    :return:
+    Create and return a Kubernetes deployment yaml for each deployment
+    :param spec: The kopf spec
+    :param name: The instrument name
+    :return: Tuple of the mutable mappings containing the deployment specs
     """
     archive_dir = os.environ.get("ARCHIVE_DIR", "/archive")
     queue_host = os.environ.get("QUEUE_HOST", "rabbitmq-cluster.rabbitmq.svc.cluster.local")
