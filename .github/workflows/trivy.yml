@@ -1,0 +1,73 @@
+name: Image Scan
+on:
+  schedule:
+    - cron: "49 8 * * *"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}
+
+jobs:
+  file-watcher-scan:
+    name: file-watcher image scan
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          file: ./container/file_watcher.D
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/file_watcher:${{ github.sha }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/file_watcher:${{ github.sha }}
+          format: sarif
+          output: trivy-results-file-watcher.sarif
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Print results
+        run: cat trivy-results-file-watcher.sarif
+        if: failure()
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: failure()
+        with:
+          sarif_file: trivy-results-file-watcher.sarif
+
+  file-watcher-operator-scan:
+    name: file-watcher-operator image scan
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          file: ./container/file_watcher_operator.D
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/file_watcher_operator:${{ github.sha }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/file_watcher_operator:${{ github.sha }}
+          format: sarif
+          output: trivy-results-file-watcher-operator.sarif
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Print results
+        run: cat trivy-results-file-watcher-operator.sarif
+        if: failure()
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: failure()
+        with:
+          sarif_file: trivy-results-file-watcher-operator.sarif
